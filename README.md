@@ -62,3 +62,7 @@ The response is a draft, and it says why:
 ## Rule
 
 Verified means every stored claim has an http or https URL and a retrieval date. FTS5 is the only ranker. Nabu never scrapes pages. Wikipedia text comes only from its API, one summary per lesson, with attribution, and stays a draft. The Sage answers only from what is on the tablet.
+
+## Preview
+
+`preview/` holds a single-file Nabu built as a claude.ai artifact. A search summons a book that flies in, opens, and writes the page while it streams: a direct answer, an at-a-glance box, sections, steps or a comparison table depending on what was asked, doorways to real sites, and related books. Follow-up questions add pages to the same book. Every summoned book is shelved in your library. Run `python3 preview/build.py` to produce `preview/nabu.html`.
