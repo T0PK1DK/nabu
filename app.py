@@ -312,24 +312,43 @@ def render_template(name, mapping):
     return pattern.sub(lambda match: mapping[match.group(1)], text).encode("utf-8")
 
 
-def render_hits(q, hits):
-    if q:
-        kicker = "Hits"
-    else:
-        kicker = "The tablet"
-    parts = [f'<p class="kicker">{esc(kicker)}</p>']
+def render_hits(hits):
     if not hits:
-        parts.append('<p class="empty">Nothing on the tablet for that.</p>')
-        return "".join(parts)
-    for hit in hits:
+        return '<p class="empty">Nothing on the tablet for that.</p>'
+    parts = []
+    for i, hit in enumerate(hits, 1):
+        status = hit["status"]
         parts.append(
             f"""<a class="hit" href="/e/{esc(hit["slug"])}">
-  <div class="hit-top"><h2>{esc(hit["title"])}</h2><span class="status {esc(hit["status"])}">{esc(hit["status"])}</span></div>
-  <div class="kind">{esc(hit["kind"])}</div>
-  <p>{esc(hit["summary"])}</p>
+  <span class="num">{i:02d}</span>
+  <span class="entry">
+    <span class="line"><h2>{esc(hit["title"])}</h2><span class="status {esc(status)}"><i></i>{esc(status)}</span></span>
+    <span class="kind">{esc(hit["kind"])}</span>
+    <p>{esc(hit["summary"])}</p>
+  </span>
 </a>"""
         )
     return "".join(parts)
+
+
+def render_home(q):
+    q = (q or "").strip()
+    hits = search(q)
+    if q and not hits:
+        label = "No hits"
+    elif q:
+        label = "Hits"
+    else:
+        label = "The tablet"
+    return render_template(
+        "index.html",
+        {
+            "QUERY": esc(q),
+            "RESULTS": render_hits(hits),
+            "LABEL": esc(label),
+            "COUNT": f"{len(hits):02d}",
+        },
+    )
 
 
 def render_claims(claims):
@@ -349,14 +368,6 @@ def render_claims(claims):
             f"<li><p>{esc(claim['text'])}</p>{src}<span class=\"when\">retrieved {esc(when)}</span></li>"
         )
     return "".join(parts)
-
-
-def render_home(q):
-    hits = search(q)
-    return render_template(
-        "index.html",
-        {"QUERY": esc(q), "RESULTS": render_hits(q, hits)},
-    )
 
 
 def render_entry(slug):
