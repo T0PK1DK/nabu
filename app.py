@@ -312,6 +312,29 @@ def render_template(name, mapping):
     return pattern.sub(lambda match: mapping[match.group(1)], text).encode("utf-8")
 
 
+def voice_for(q, count):
+    if not q:
+        return "The tablet is open. Ask, and I will find the line."
+    if count == 0:
+        return "I turned the tablet. That is not written."
+    if count == 1:
+        return "One line was already there."
+    words = {
+        2: "Two",
+        3: "Three",
+        4: "Four",
+        5: "Five",
+        6: "Six",
+        7: "Seven",
+        8: "Eight",
+        9: "Nine",
+        10: "Ten",
+        11: "Eleven",
+        12: "Twelve",
+    }
+    return f"{words.get(count, str(count))} lines were already written."
+
+
 def render_hits(hits):
     if not hits:
         return '<p class="empty">Nothing on the tablet for that.</p>'
@@ -347,6 +370,7 @@ def render_home(q):
             "RESULTS": render_hits(hits),
             "LABEL": esc(label),
             "COUNT": f"{len(hits):02d}",
+            "VOICE": esc(voice_for(q, len(hits))),
         },
     )
 
@@ -384,6 +408,7 @@ def render_entry(slug):
                     "BODY": "",
                     "CLAIMS": "<li>No claims.</li>",
                     "UPDATED": "",
+                    "VOICE": "That page is not cut into the clay.",
                 },
             ),
             404,
@@ -400,6 +425,7 @@ def render_entry(slug):
                 "BODY": esc(entry["body"]),
                 "CLAIMS": render_claims(entry["claims"]),
                 "UPDATED": esc("Revised " + updated),
+                "VOICE": "This is what the clay says.",
             },
         ),
         200,
@@ -415,6 +441,20 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def send_asset(self, name, content_type):
+        path = (STATIC / name).resolve()
+        root = STATIC.resolve()
+        if path.parent != root or not path.is_file():
+            self.send_json(404, {"error": "not found"})
+            return
+        raw = path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "public, max-age=86400")
         self.end_headers()
         self.wfile.write(raw)
 
@@ -438,6 +478,9 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/favicon.ico":
             self.send_response(204)
             self.end_headers()
+            return
+        if path == "/static/scribe.jpg":
+            self.send_asset("scribe.jpg", "image/jpeg")
             return
         if path in ("/", "/index.html"):
             q = parse_qs(parsed.query).get("q", [""])[0]
