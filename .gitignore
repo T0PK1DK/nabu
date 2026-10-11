@@ -1,0 +1,4 @@
+nabu.db
+nabu.db-*
+__pycache__/
+*.pyc

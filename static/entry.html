@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>{{TITLE}} — Nabu</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%2314100d' width='32' height='32'/%3E%3Cpath d='M7 26 L15 6 L19 26 Z' fill='%23c9854a'/%3E%3Cpath d='M18 26 L24 12 L28 26 Z' fill='%23e2b07a'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --clay: #14100d;
+    --ink: #f3e6d4;
+    --muted: #a89278;
+    --line: #3a2e24;
+    --bronze: #c9854a;
+    --bronze-2: #e2b07a;
+    --good: #c5d2b2;
+    --draft: #e0c078;
+    --disputed: #d4846a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--clay); color: var(--ink);
+    font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+    background-image: radial-gradient(820px 380px at 12% -80px, rgba(201,133,74,.18), transparent 60%);
+  }
+  .wrap { max-width: 740px; margin: 0 auto; padding: 28px 28px 80px; }
+  a { color: var(--bronze-2); }
+  a:focus-visible { outline: 2px solid var(--bronze-2); outline-offset: 3px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 28px; }
+  .brand {
+    display: flex; gap: 10px; align-items: center;
+    color: var(--ink); text-decoration: none;
+    letter-spacing: .22em; text-transform: uppercase; font-size: 13px;
+  }
+  .status { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+  .status.verified { color: var(--good); }
+  .status.draft { color: var(--draft); }
+  .status.disputed { color: var(--disputed); }
+  .kind { color: var(--bronze-2); letter-spacing: .16em; text-transform: uppercase; font-size: 12px; margin: 0; }
+  h1 {
+    font-size: clamp(36px, 6vw, 60px); font-weight: 500;
+    letter-spacing: -0.03em; line-height: 1; margin: 8px 0 16px;
+    overflow-wrap: break-word;
+  }
+  .summary { font-size: 21px; line-height: 1.45; color: var(--muted); margin: 0 0 8px; }
+  .rule { height: 1px; margin: 22px 0; background: linear-gradient(90deg, var(--bronze), transparent 75%); }
+  .body { font-size: 18px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: break-word; }
+  h2 { font-weight: 500; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--bronze-2); margin: 36px 0 8px; }
+  ol { margin: 0; padding: 0; list-style: none; }
+  li { border-top: 1px solid var(--line); padding: 14px 0; }
+  li p { margin: 0 0 6px; }
+  .src { display: block; font-size: 14px; overflow-wrap: anywhere; }
+  .src.missing { color: var(--draft); }
+  .when { display: block; color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .revised { color: var(--muted); font-size: 13px; letter-spacing: .06em; margin-top: 28px; }
+  @media (max-width: 640px) {
+    .wrap { padding: 22px 18px 64px; }
+    .summary { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/">
+        <svg width="22" height="18" viewBox="0 0 28 22" aria-hidden="true">
+          <path d="M2 20 L10 2 L14 20 Z" fill="#c9854a"/>
+          <path d="M13 20 L19 7 L23 20 Z" fill="#e2b07a"/>
+        </svg>
+        Nabu
+      </a>
+      <span class="status {{STATUS}}">{{STATUS}}</span>
+    </header>
+    <p class="kind">{{KIND}}</p>
+    <h1>{{TITLE}}</h1>
+    <p class="summary">{{SUMMARY}}</p>
+    <div class="rule"></div>
+    <div class="body">{{BODY}}</div>
+    <h2>Claims</h2>
+    <ol>{{CLAIMS}}</ol>
+    <p class="revised">{{UPDATED}}</p>
+  </div>
+</body>
+</html>
