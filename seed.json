@@ -5,11 +5,11 @@
       "title": "Nabu",
       "kind": "project",
       "summary": "A local cited encyclopedia and search index. Humans search the tablet. An agent uses the same store through the API. A line without a source stays a draft.",
-      "body": "Nabu is a small search engine over a structured knowledge store. It is not a copy of the web, and it is not a fork of Wikipedia. Version 0.2 is one SQLite file. Search is FTS5. There is no crawler and no account system.\n\nTwo doors read that file. A person uses the search box. An agent calls GET /api/search, GET /api/e/:slug, and POST /api/propose. If a proposal asks to be verified and any claim lacks a source URL or a retrieval date, the text is kept and the status is draft. The response says why.\n\nThe name is the Babylonian god of writing and scribes. He keeps the tablet. He does not invent the fate.",
+      "body": "Nabu is a small search engine over a structured knowledge store. It is not a copy of the web, and it is not a fork of Wikipedia. Version 0.3 is one SQLite file. Search is FTS5. There is no crawler and no account system. A sage answers from the entries and cites them. When the tablet is thin, Nabu reads one Wikipedia summary through the official API and keeps it as a draft.\n\nTwo doors read that file. A person uses the search box. An agent calls GET /api/search, GET /api/e/:slug, and POST /api/propose. If a proposal asks to be verified and any claim lacks a source URL or a retrieval date, the text is kept and the status is draft. The response says why.\n\nThe name is the Babylonian god of writing and scribes. He keeps the tablet. He does not invent the fate.",
       "status": "verified",
       "claims": [
         {
-          "text": "Nabu v0.2 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.",
+          "text": "Nabu v0.3 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.",
           "url": "https://raw.githubusercontent.com/T0PK1DK/nabu/main/README.md",
           "retrieved": "2026-10-10"
         },
@@ -75,7 +75,7 @@
       "title": "Grokipedia",
       "kind": "project",
       "summary": "Encyclopedia launched by xAI on 27 October 2025. Visitors cannot directly edit pages. Some pages say they were adapted from Wikipedia under CC BY-SA.",
-      "body": "Grokipedia is an encyclopedia launched by xAI on 27 October 2025. Lawfare later described the launch set as roughly 885,000 machine-generated articles. It has a search box. It is not a crawl of the open web, and it is not this project.\n\nAt launch, a reporter at The Verge could not directly edit a page the way a Wikipedia editor can. Some pages carried a notice that the content was adapted from Wikipedia under the Creative Commons Attribution-ShareAlike 4.0 license.\n\nNabu does not copy those pages and does not scrape Wikipedia. A claim about Grokipedia on this tablet points at a news article, with the day it was read.",
+      "body": "Grokipedia is an encyclopedia launched by xAI on 27 October 2025. Lawfare later described the launch set as roughly 885,000 machine-generated articles. It has a search box. It is not a crawl of the open web, and it is not this project.\n\nAt launch, a reporter at The Verge could not directly edit a page the way a Wikipedia editor can. Some pages carried a notice that the content was adapted from Wikipedia under the Creative Commons Attribution-ShareAlike 4.0 license.\n\nNabu does not copy those pages. It has no public API to read from. A claim about Grokipedia on this tablet points at a news article, with the day it was read.",
       "status": "verified",
       "claims": [
         {
@@ -99,7 +99,7 @@
       "slug": "fts5",
       "title": "FTS5",
       "kind": "tool",
-      "summary": "SQLite’s full-text search extension. Nabu v0.2 uses it as the only ranker. No embeddings.",
+      "summary": "SQLite’s full-text search extension. Nabu v0.3 uses it as the only ranker. No embeddings.",
       "body": "FTS5 is the full-text search module that ships with SQLite. It is a virtual table. An application stores text in it and asks MATCH. The module returns the documents that contain the terms, and bm25 ranks them.\n\nNabu indexes title, summary, and body in one FTS5 table. An empty query does not search. It lists the tablet. A query with words is ranked by bm25 and nothing else. There is no vector index in this version.",
       "status": "verified",
       "claims": [

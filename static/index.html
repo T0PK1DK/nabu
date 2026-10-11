@@ -6,6 +6,8 @@
 <meta name="color-scheme" content="dark">
 <title>Nabu</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23100e0c' width='32' height='32'/%3E%3Cpath d='M8 26 L16 6 L20 26 Z' fill='%23c9854a'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Cuneiform&text=%F0%92%80%AD%F0%92%80%B8%F0%92%81%80%F0%92%81%B9%F0%92%82%97%F0%92%83%B2%F0%92%84%BF%F0%92%85%86%F0%92%86%A0%F0%92%87%BB%F0%92%88%A8%F0%92%89%A1%F0%92%8A%A9%F0%92%8B%97%F0%92%8C%8B%F0%92%8C%91%F0%92%8D%A3%F0%92%90%95%F0%92%90%96%F0%92%90%97%F0%92%80%80%F0%92%81%B2%F0%92%82%8A%F0%92%86%B3&display=swap">
 <style>
   :root {
     --room: #100e0c;
@@ -17,6 +19,8 @@
     --bronze-2: #e2b07a;
     --draft: #e0c078;
     --disputed: #d4846a;
+    --lapis: #16202e;
+    --glow: rgba(226, 176, 122, .55);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--room); color: var(--ink); }
@@ -25,19 +29,82 @@
     font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
     min-height: 100vh;
   }
-  .room { min-height: 100vh; padding: 36px 20px 56px; }
+  .room { position: relative; min-height: 100vh; padding: 36px 20px 56px; overflow: hidden; }
+
+  /* The library: books that drift in the dark around the tablet. */
+  .library { position: fixed; inset: 0; pointer-events: none; z-index: 0; transition: opacity .6s ease; opacity: .9; }
+  .tome {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: var(--w);
+    color: var(--c);
+    opacity: var(--o);
+    transform: rotate(var(--r));
+    animation: drift var(--d) ease-in-out var(--delay) infinite alternate;
+    filter: drop-shadow(0 0 10px rgba(201, 133, 74, .25));
+  }
+  .tome svg { display: block; width: 100%; height: auto; }
+  .tome.open .leaf { transform-origin: 50% 100%; animation: leaf calc(var(--d) / 2.2) ease-in-out var(--delay) infinite alternate; }
+  .mote {
+    position: absolute;
+    left: var(--x);
+    bottom: -10px;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--bronze-2);
+    box-shadow: 0 0 8px 2px var(--glow);
+    opacity: 0;
+    animation: rise var(--d) linear var(--delay) infinite;
+  }
+  .library.stir .tome { animation-duration: calc(var(--d) / 3); filter: drop-shadow(0 0 16px rgba(226, 176, 122, .6)); }
+  .library.stir .mote { animation-duration: calc(var(--d) / 2.5); }
+  @keyframes drift {
+    from { transform: translate3d(0, 0, 0) rotate(var(--r)); }
+    to { transform: translate3d(var(--dx), -26px, 0) rotate(calc(var(--r) + 7deg)); }
+  }
+  @keyframes leaf { to { transform: scaleY(.82) skewX(-6deg); } }
+  @keyframes rise {
+    10% { opacity: .9; }
+    80% { opacity: .5; }
+    to { opacity: 0; transform: translate3d(var(--dx), -100vh, 0); }
+  }
+
   .slab {
+    position: relative;
+    z-index: 1;
     width: min(860px, 100%);
     margin: 0 auto;
     background:
       linear-gradient(180deg, rgba(243, 230, 212, .05), transparent 140px),
-      var(--slab);
+      rgba(35, 27, 22, .84);
+    -webkit-backdrop-filter: blur(1.5px);
+    backdrop-filter: blur(1.5px);
     border-radius: 4px;
     padding: 22px 28px 10px;
     box-shadow:
       0 0 0 1px rgba(201, 133, 74, .28),
       inset 0 1px 0 rgba(243, 230, 212, .1),
       0 28px 60px rgba(0, 0, 0, .45);
+  }
+  .slab {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "presence" "ask" "sage" "registers";
+  }
+  .presence { grid-area: presence; }
+  #ask { grid-area: ask; }
+  .registers { grid-area: registers; }
+  .sage { grid-area: sage; }
+  @media (min-width: 1000px) {
+    .slab.consulted {
+      width: min(1200px, 100%);
+      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-areas: "presence sage" "ask sage" "registers sage";
+      column-gap: 30px;
+    }
+    .slab.consulted .sage { position: sticky; top: 24px; align-self: start; margin: 0 -8px 18px 0; }
   }
   .presence { display: flex; gap: 18px; align-items: center; margin-bottom: 22px; }
   .presence img {
@@ -116,16 +183,137 @@
   @keyframes lamp {
     50% { box-shadow: 0 0 0 1px rgba(226, 176, 122, .95), 0 0 28px rgba(201, 133, 74, .55); }
   }
-  .registers.fresh .hit { animation: inscribe .42s ease both; }
-  .registers.fresh .hit:nth-child(2) { animation-delay: .05s; }
-  .registers.fresh .hit:nth-child(3) { animation-delay: .1s; }
-  .registers.fresh .hit:nth-child(4) { animation-delay: .15s; }
-  .registers.fresh .hit:nth-child(5) { animation-delay: .2s; }
-  .registers.fresh .hit:nth-child(6) { animation-delay: .25s; }
-  @keyframes inscribe {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: none; }
+  /* A hit arrives the way a summoned book does: out of the air, settling into place. */
+  .registers.fresh .hit { animation: summon .7s cubic-bezier(.2, .9, .25, 1.15) both; }
+  .registers.fresh .hit:nth-child(2) { animation-delay: .08s; }
+  .registers.fresh .hit:nth-child(3) { animation-delay: .16s; }
+  .registers.fresh .hit:nth-child(4) { animation-delay: .24s; }
+  .registers.fresh .hit:nth-child(5) { animation-delay: .32s; }
+  .registers.fresh .hit:nth-child(6) { animation-delay: .4s; }
+  @keyframes summon {
+    0% { opacity: 0; transform: translate3d(70px, -40px, 0) rotate(-7deg) scale(.9); filter: blur(5px); }
+    60% { opacity: 1; filter: blur(0); }
+    100% { opacity: 1; transform: none; }
   }
+
+  /* The sage: a window that opens beside the tablet and reads glyphs into words. */
+  .sage {
+    position: relative;
+    margin: 18px 0 6px;
+    padding: 16px 18px 14px;
+    border-radius: 6px;
+    background:
+      radial-gradient(260px 140px at 85% -20px, rgba(226, 176, 122, .16), transparent 70%),
+      linear-gradient(180deg, #1b2533, var(--lapis));
+    box-shadow:
+      0 0 0 1px rgba(226, 176, 122, .35),
+      0 0 34px rgba(201, 133, 74, .18),
+      0 22px 50px rgba(0, 0, 0, .5);
+    overflow: hidden;
+  }
+  .sage[hidden] { display: none; }
+  .sage.opening { animation: unfurl .65s cubic-bezier(.2, .8, .2, 1) both; }
+  @keyframes unfurl {
+    from { clip-path: inset(0 0 100% 0 round 6px); opacity: 0; transform: translateY(-10px) scale(.98); }
+    to { clip-path: inset(0 0 0 0 round 6px); opacity: 1; transform: none; }
+  }
+  .sage::before {
+    content: "𒀭𒀸𒁀𒁹𒂗𒃲𒄿𒅆𒆠𒇻𒈨𒉡𒊩𒋗𒌋𒌑𒍣";
+    position: absolute;
+    inset: auto -10px -14px auto;
+    font: 54px/1 "Noto Sans Cuneiform", serif;
+    color: rgba(226, 176, 122, .05);
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .sage-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--bronze-2);
+    font-size: 12px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+  }
+  .seal {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, var(--bronze-2), var(--bronze) 60%, #6e4424);
+    box-shadow: 0 0 12px var(--glow);
+  }
+  .sage.reading .seal { animation: pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse { 50% { box-shadow: 0 0 22px 4px var(--glow); transform: scale(1.08); } }
+  .sage-text {
+    position: relative;
+    margin: 12px 0 0;
+    min-height: 4.2em;
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--ink);
+    text-wrap: pretty;
+  }
+  .glyph {
+    font-family: "Noto Sans Cuneiform", serif;
+    font-size: .82em;
+    color: var(--bronze-2);
+    text-shadow: 0 0 10px var(--glow);
+    letter-spacing: .04em;
+  }
+  .glyph.dim { opacity: .45; }
+  .cite {
+    display: inline-grid;
+    place-items: center;
+    min-width: 18px;
+    height: 18px;
+    margin: 0 1px;
+    padding: 0 4px;
+    border-radius: 9px;
+    background: rgba(201, 133, 74, .22);
+    color: var(--bronze-2);
+    font: 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    text-decoration: none;
+    vertical-align: 2px;
+  }
+  .cite:hover { background: var(--bronze); color: #1a120c; }
+  .sage-sources { list-style: none; margin: 14px 0 0; padding: 0; }
+  .sage-sources li {
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 8px;
+    padding: 8px 0;
+    border-top: 1px solid rgba(243, 230, 212, .08);
+    font-size: 14px;
+    animation: summon .6s cubic-bezier(.2, .9, .25, 1.15) both;
+  }
+  .sage-sources li:nth-child(2) { animation-delay: .08s; }
+  .sage-sources li:nth-child(3) { animation-delay: .16s; }
+  .sage-sources li:nth-child(4) { animation-delay: .24s; }
+  .sage-sources .n { color: var(--bronze); font: 11px/1.9 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .sage-sources a { color: var(--ink); text-decoration: none; }
+  .sage-sources a:hover { color: var(--bronze-2); }
+  .sage-sources small { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .sage-note { margin: 10px 0 0; color: var(--muted); font-size: 13px; font-style: italic; }
+  .sage-note:empty { display: none; }
+  .sage-note a { color: var(--bronze-2); }
+  .portal {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: 4px;
+    background: rgba(201, 133, 74, .14);
+    box-shadow: inset 0 0 0 1px rgba(226, 176, 122, .4);
+    color: var(--ink);
+    text-decoration: none;
+    animation: summon .7s cubic-bezier(.2, .9, .25, 1.15) both;
+  }
+  .portal[hidden] { display: none; }
+  .portal:hover { background: rgba(201, 133, 74, .26); }
+  .portal span { color: var(--muted); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
   a.hit {
     display: grid;
     grid-template-columns: 40px 1fr;
@@ -172,6 +360,8 @@
   .status.disputed { color: var(--disputed); }
   .empty { margin: 22px 0 18px; color: var(--muted); font-size: 18px; }
   .colophon {
+    position: relative;
+    z-index: 1;
     width: min(860px, 100%);
     margin: 16px auto 0;
     color: #6f5e4e;
@@ -187,14 +377,18 @@
     h2 { font-size: 20px; }
     .line { align-items: flex-start; }
     .entry p { font-size: 15px; }
+    .sage-text { font-size: 16px; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .registers, .presence img, .registers.fresh .hit { animation: none; transition: none; }
+    .registers, .presence img, .registers.fresh .hit, .tome, .tome .leaf, .mote,
+    .sage, .sage-sources li, .portal, .seal { animation: none !important; transition: none; }
+    .mote { display: none; }
   }
 </style>
 </head>
 <body>
   <div class="room">
+    <div class="library" id="library" aria-hidden="true"></div>
     <article class="slab" id="slab">
       <div class="presence">
         <img src="/static/scribe.jpg" alt="Nabu, the scribe" width="86" height="114">
@@ -214,6 +408,13 @@
           </button>
         </div>
       </form>
+      <aside class="sage" id="sage" aria-live="polite" hidden>
+        <div class="sage-head"><span class="seal"></span><span>The Sage</span></div>
+        <p class="sage-text" id="sage-text"></p>
+        <a class="portal" id="portal" target="_blank" rel="noopener" hidden></a>
+        <ol class="sage-sources" id="sage-sources"></ol>
+        <p class="sage-note" id="sage-note"></p>
+      </aside>
       <div class="registers" id="registers">
 {{RESULTS}}
       </div>
@@ -229,8 +430,198 @@
   var slab = document.getElementById("slab");
   var button = form.querySelector("button");
   var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var library = document.getElementById("library");
+  var sage = document.getElementById("sage");
+  var sageText = document.getElementById("sage-text");
+  var sageSources = document.getElementById("sage-sources");
+  var sageNote = document.getElementById("sage-note");
+  var portal = document.getElementById("portal");
   var seeking = ["I lift the stylus.", "I search the clay.", "I read only what is written."];
+  var GLYPHS = Array.from("𒀭𒀸𒁀𒁹𒂗𒃲𒄿𒅆𒆠𒇻𒈨𒉡𒊩𒋗𒌋𒌑𒍣𒐕𒐖𒐗𒀀𒁲𒂊𒆳");
   var timer = 0;
+  var asking = 0;
+  var murmur = 0;
+  var stirTimer = 0;
+  var learnedHits = null;
+
+  function glyph() { return GLYPHS[Math.floor(Math.random() * GLYPHS.length)]; }
+
+  var CLOSED = '<svg viewBox="0 0 40 52"><rect x="4" y="2" width="32" height="48" rx="2" fill="currentColor" opacity=".9"/>' +
+    '<rect x="4" y="2" width="5" height="48" fill="#000" opacity=".25"/><rect x="34" y="5" width="3" height="42" fill="#f3e6d4" opacity=".35"/>' +
+    '<path d="M15 16 h14 M15 21 h10" stroke="#100e0c" stroke-width="1.6" opacity=".5"/></svg>';
+  var OPEN = '<svg viewBox="0 0 64 40"><path d="M32 8 C24 2 12 2 3 5 V36 C12 33 24 33 32 38 Z" fill="currentColor" opacity=".85"/>' +
+    '<path class="leaf" d="M32 8 C40 2 52 2 61 5 V36 C52 33 40 33 32 38 Z" fill="currentColor" opacity=".7"/>' +
+    '<path d="M9 12 h16 M9 17 h14 M9 22 h16 M39 12 h16 M39 17 h12" stroke="#100e0c" stroke-width="1.2" opacity=".45"/></svg>';
+
+  function shelve() {
+    if (reduced) return;
+    var colors = ["#c9854a", "#e2b07a", "#8a5a36", "#a8735a", "#d9b98f"];
+    var seed = 7;
+    function rand() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var i = 0; i < 14; i++) {
+      var open = i % 3 === 0;
+      var t = document.createElement("div");
+      t.className = "tome" + (open ? " open" : "");
+      t.innerHTML = open ? OPEN : CLOSED;
+      var side = i % 2 ? 70 + rand() * 28 : rand() * 26;
+      t.style.cssText = "--x:" + side.toFixed(1) + "vw;--y:" + (rand() * 92).toFixed(1) + "vh;--w:" +
+        Math.round((open ? 46 : 26) + rand() * 26) + "px;--c:" + colors[i % colors.length] + ";--o:" +
+        (0.14 + rand() * 0.2).toFixed(2) + ";--r:" + Math.round(rand() * 50 - 25) + "deg;--d:" +
+        (7 + rand() * 7).toFixed(1) + "s;--delay:-" + (rand() * 8).toFixed(1) + "s;--dx:" + Math.round(rand() * 30 - 15) + "px";
+      library.appendChild(t);
+    }
+    for (var j = 0; j < 18; j++) {
+      var m = document.createElement("div");
+      m.className = "mote";
+      m.style.cssText = "--x:" + (rand() * 100).toFixed(1) + "vw;--d:" + (12 + rand() * 12).toFixed(1) +
+        "s;--delay:-" + (rand() * 20).toFixed(1) + "s;--dx:" + Math.round(rand() * 80 - 40) + "px";
+      library.appendChild(m);
+    }
+  }
+
+  function stir() {
+    library.classList.add("stir");
+    clearTimeout(stirTimer);
+    stirTimer = setTimeout(function () { library.classList.remove("stir"); }, 2400);
+  }
+
+  function withCitations(el, text, sources) {
+    el.replaceChildren();
+    text.split(/(\[\d+\])/).forEach(function (part) {
+      var m = /^\[(\d+)\]$/.exec(part);
+      var src = m && sources[Number(m[1]) - 1];
+      if (src) {
+        var a = document.createElement("a");
+        a.className = "cite";
+        a.href = "/e/" + encodeURIComponent(src.slug);
+        a.title = src.title;
+        a.textContent = m[1];
+        el.appendChild(a);
+      } else if (!m) {
+        el.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+
+  // Glyphs at the edge of the line resolve into words, left to right.
+  function decode(text, sources, token) {
+    clearInterval(murmur);
+    if (reduced) { withCitations(sageText, text, sources); return; }
+    var plain = text.replace(/\[(\d+)\]/g, "");
+    var start = performance.now();
+    var dur = Math.min(2600, 700 + plain.length * 6);
+    function frame(now) {
+      if (token !== asking) return;
+      var p = Math.min(1, (now - start) / dur);
+      var shown = Math.floor(p * plain.length);
+      sageText.replaceChildren(document.createTextNode(plain.slice(0, shown)));
+      if (p < 1) {
+        var front = document.createElement("span");
+        front.className = "glyph";
+        var tail = "";
+        for (var i = shown; i < Math.min(plain.length, shown + 18); i++) tail += plain[i] === " " ? " " : glyph();
+        front.textContent = tail;
+        sageText.appendChild(front);
+        requestAnimationFrame(frame);
+      } else {
+        withCitations(sageText, text, sources);
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function openSage() {
+    slab.classList.add("consulted");
+    if (sage.hidden) {
+      sage.hidden = false;
+      sage.classList.remove("opening");
+      void sage.offsetWidth;
+      if (!reduced) sage.classList.add("opening");
+    }
+    sage.classList.add("reading");
+    sageSources.replaceChildren();
+    sageNote.textContent = "";
+    portal.hidden = true;
+    clearInterval(murmur);
+    function line() {
+      var s = "";
+      for (var i = 0; i < 64; i++) s += i % 7 === 6 ? " " : glyph();
+      return s;
+    }
+    var span = document.createElement("span");
+    span.className = "glyph dim";
+    sageText.replaceChildren(span);
+    span.textContent = line();
+    if (!reduced) murmur = setInterval(function () { span.textContent = line(); }, 140);
+  }
+
+  function consult(q) {
+    var token = ++asking;
+    learnedHits = null;
+    if (!q) {
+      clearInterval(murmur);
+      sage.hidden = true;
+      slab.classList.remove("consulted");
+      return;
+    }
+    openSage();
+    fetch("/api/ask?q=" + encodeURIComponent(q))
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (token !== asking) return;
+        sage.classList.remove("reading");
+        var sources = data.sources || [];
+        decode(data.answer || "", sources, token);
+        sources.forEach(function (s) {
+          var li = document.createElement("li");
+          var n = document.createElement("span");
+          n.className = "n";
+          n.textContent = String(s.n).padStart(2, "0");
+          var body = document.createElement("span");
+          var a = document.createElement("a");
+          a.href = "/e/" + encodeURIComponent(s.slug);
+          a.textContent = s.title;
+          body.appendChild(a);
+          if (s.url) {
+            var small = document.createElement("small");
+            small.textContent = s.status + " · " + s.url.replace(/^https?:\/\//, "").split("/")[0];
+            body.appendChild(small);
+          }
+          li.appendChild(n);
+          li.appendChild(body);
+          sageSources.appendChild(li);
+        });
+        if (data.portal) {
+          portal.replaceChildren();
+          var host = document.createElement("strong");
+          host.textContent = data.portal.host + " ↗";
+          var label = document.createElement("span");
+          label.textContent = "Doorway";
+          portal.appendChild(label);
+          portal.appendChild(host);
+          portal.href = data.portal.url;
+          portal.hidden = false;
+        }
+        var note = data.mode === "ai" ? "Spoken from the tablet by Workers AI." : "Read straight from the tablet.";
+        if (data.learned && data.learned.length) {
+          var learned = sources.filter(function (s) { return data.learned.indexOf(s.slug) !== -1; })[0];
+          note = "I did not have this, so I went and read. " + (learned ? "“" + learned.title + "” is now on the tablet as a draft. " : "") + note;
+          if (data.hits) {
+            learnedHits = { q: q, hits: data.hits };
+            paint(q, data.hits, true);
+          }
+          voice.textContent = "That was not written. I went to read, and set a draft line down.";
+          stir();
+        }
+        sageNote.textContent = note;
+      })
+      .catch(function () {
+        if (token !== asking) return;
+        clearInterval(murmur);
+        sage.classList.remove("reading");
+        sageText.textContent = "The sage is quiet. The tablet below is still true.";
+      });
+  }
 
   function answer(n) {
     var words = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
@@ -288,6 +679,8 @@
 
   function ask(q, ritual) {
     if (timer) clearInterval(timer);
+    if (ritual) stir();
+    consult(q);
     button.disabled = true;
     slab.classList.add("searching");
     var step = 0;
@@ -312,6 +705,7 @@
         timer = 0;
         button.disabled = false;
         slab.classList.remove("searching");
+        if (learnedHits && learnedHits.q === q) return;
         paint(q, data.hits || [], ritual);
       })
       .catch(function () {
@@ -331,6 +725,9 @@
     input.value = q;
     ask(q, false);
   });
+
+  shelve();
+  if (input.value.trim()) consult(input.value.trim());
 })();
 </script>
 </body>

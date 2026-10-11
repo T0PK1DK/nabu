@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Nabu v0.2 — local cited encyclopedia and search index.
+"""Nabu v0.3 — local cited encyclopedia, search index, and a sage that reads it.
 
 Python 3 standard library only. SQLite FTS5. No crawler, no embeddings.
+The sage answers from the tablet through Cloudflare Workers AI when a token is
+set. When the tablet is thin, Nabu reads one Wikipedia summary through the
+official API and keeps it as a draft with its URL.
 """
 
 import html
@@ -9,10 +12,12 @@ import json
 import os
 import re
 import sqlite3
-from datetime import datetime, timezone
+import urllib.error
+import urllib.request
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 
 ROOT = Path(__file__).resolve().parent
 DB = ROOT / "nabu.db"
@@ -22,6 +27,13 @@ HOST = os.environ.get("NABU_HOST", "127.0.0.1")
 PORT = int(os.environ.get("NABU_PORT", "8787"))
 STATUSES = ("draft", "verified", "disputed")
 SLUG_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+USER_AGENT = "Nabu/0.3 (local cited encyclopedia; https://github.com/T0PK1DK/nabu)"
+LEARN = os.environ.get("NABU_LEARN", "1") != "0"
+LEARN_PER_HOUR = int(os.environ.get("NABU_LEARN_PER_HOUR", "12"))
+CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID", "").strip()
+CF_API_TOKEN = os.environ.get("CF_API_TOKEN", "").strip()
+CF_MODEL = os.environ.get("NABU_CF_MODEL", "@cf/meta/llama-3.1-8b-instruct").strip()
+DOMAIN_RE = re.compile(r"(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})(/\S*)?", re.I)
 
 
 def connect():
@@ -59,6 +71,11 @@ def init_db():
             summary,
             body,
             tokenize = 'porter unicode61'
+        );
+        CREATE TABLE IF NOT EXISTS lessons (
+            query TEXT PRIMARY KEY,
+            slug TEXT,
+            tried_at TEXT NOT NULL
         );
         """
     )
@@ -302,6 +319,197 @@ def propose(payload):
     return 200, out
 
 
+def fetch_json(url, data=None, headers=None, timeout=8):
+    req = urllib.request.Request(url, data=data, headers={"User-Agent": USER_AGENT, **(headers or {})})
+    with urllib.request.urlopen(req, timeout=timeout) as res:
+        return json.loads(res.read().decode("utf-8"))
+
+
+def slugify(text):
+    slug = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
+    return slug[:80].strip("-") or "entry"
+
+
+def first_sentences(text, limit=240):
+    out = ""
+    for sentence in re.split(r"(?<=[.!?])\s+", text.strip()):
+        if out and len(out) + len(sentence) + 1 > limit:
+            break
+        out = (out + " " + sentence).strip()
+    return out[:limit].rstrip() if len(out) > limit else out
+
+
+def wikipedia_summary(q):
+    """One summary from the official Wikipedia API, or None."""
+    found = fetch_json(
+        "https://en.wikipedia.org/w/api.php?"
+        + urlencode({"action": "query", "list": "search", "srsearch": q, "srlimit": 1, "format": "json"})
+    )
+    results = found.get("query", {}).get("search", [])
+    if not results:
+        return None
+    title = results[0]["title"]
+    page = fetch_json(
+        "https://en.wikipedia.org/api/rest_v1/page/summary/" + quote(title.replace(" ", "_"), safe="")
+    )
+    if page.get("type") == "disambiguation" or not page.get("extract"):
+        return None
+    return {
+        "title": page.get("title") or title,
+        "description": page.get("description") or "",
+        "extract": page["extract"].strip(),
+        "url": page.get("content_urls", {}).get("desktop", {}).get("page")
+        or "https://en.wikipedia.org/wiki/" + quote(title.replace(" ", "_")),
+    }
+
+
+def learn(q, hits):
+    """Read one Wikipedia summary when the tablet is thin. Returns a new slug or None.
+
+    Learned text is stored as draft, never verified: a summary read by a
+    machine is a lead, not a line on the record. Each query is tried once,
+    and only LEARN_PER_HOUR lessons are taken in any hour.
+    """
+    key = " ".join(q.lower().split())
+    if not LEARN or len(hits) >= 2 or len(key) < 3 or DOMAIN_RE.fullmatch(key):
+        return None
+    conn = connect()
+    try:
+        if conn.execute("SELECT 1 FROM lessons WHERE query = ?", (key,)).fetchone():
+            return None
+        since = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        taken = conn.execute("SELECT COUNT(*) AS n FROM lessons WHERE tried_at > ?", (since,)).fetchone()["n"]
+        if taken >= LEARN_PER_HOUR:
+            return None
+        conn.execute("INSERT INTO lessons (query, slug, tried_at) VALUES (?, NULL, ?)", (key, now_stamp()))
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        page = wikipedia_summary(q)
+    except (urllib.error.URLError, OSError, ValueError, KeyError) as exc:
+        print(f"[nabu] could not read Wikipedia for {key!r}: {exc}")
+        conn = connect()
+        conn.execute("DELETE FROM lessons WHERE query = ?", (key,))
+        conn.commit()
+        conn.close()
+        return None
+    if not page:
+        return None
+    slug = slugify(page["title"])
+    if get_entry(slug) or any(hit["slug"] == slug for hit in hits):
+        return None
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    summary = first_sentences(page["extract"])
+    body = (
+        page["extract"]
+        + f"\n\nNabu read this summary from Wikipedia on {today}. "
+        + "It is kept as a draft until someone checks it against the source. "
+        + "Wikipedia text is available under CC BY-SA 4.0."
+    )
+    kind = (page["description"] or "learned")[:60].lower()
+    claims = [{"text": summary, "url": page["url"], "retrieved": today}]
+    status, _ = judge(claims, "draft")
+    conn = connect()
+    try:
+        save_entry(conn, slug, page["title"], kind, summary, body, status, claims, now_stamp())
+        conn.execute("UPDATE lessons SET slug = ? WHERE query = ?", (slug, key))
+        conn.commit()
+    finally:
+        conn.close()
+    print(f"[nabu] learned {slug} from {page['url']}")
+    return slug
+
+
+def portal_for(q):
+    """A doorway when the query names a site, like github.com."""
+    match = DOMAIN_RE.fullmatch(q.strip())
+    if not match:
+        return None
+    host = match.group(1).lower()
+    return {"host": host, "url": "https://" + host + (match.group(2) or "")}
+
+
+SAGE_PROMPT = (
+    "You are Nabu, scribe of the tablet. Answer the question using only the numbered "
+    "entries below. Cite entries in square brackets like [1] after the sentence they "
+    "support. If the entries do not answer it, say plainly that it is not written on "
+    "the tablet. Do not invent facts. Three to five short sentences, plain text, no "
+    "lists, no headings."
+)
+
+
+def workers_ai(question, entries):
+    """Ask Cloudflare Workers AI to answer from the given entries. Returns text or None."""
+    if not (CF_ACCOUNT_ID and CF_API_TOKEN):
+        return None
+    context = "\n\n".join(
+        f"[{i}] {e['title']} ({e['status']})\n{e['summary']}\n{e['body'][:1200]}"
+        for i, e in enumerate(entries, 1)
+    )
+    payload = {
+        "messages": [
+            {"role": "system", "content": SAGE_PROMPT},
+            {"role": "user", "content": f"Entries:\n\n{context}\n\nQuestion: {question}"},
+        ],
+        "max_tokens": 360,
+        "temperature": 0.2,
+    }
+    url = f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{CF_MODEL}"
+    try:
+        data = fetch_json(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Authorization": f"Bearer {CF_API_TOKEN}", "Content-Type": "application/json"},
+            timeout=20,
+        )
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"[nabu] Workers AI failed: {exc}")
+        return None
+    text = (data.get("result") or {}).get("response") or ""
+    return text.strip() or None
+
+
+def ask(q):
+    """The sage: search, learn if the tablet is thin, then answer from what is written."""
+    q = (q or "").strip()
+    if not q:
+        return {"query": q, "answer": "", "mode": "silent", "sources": [], "learned": [], "portal": None}
+    hits = search(q)
+    learned = []
+    slug = learn(q, hits)
+    if slug:
+        learned.append(slug)
+        hits = search(q)
+        if not any(h["slug"] == slug for h in hits):
+            entry = get_entry(slug)
+            hits = [{k: entry[k] for k in ("slug", "title", "kind", "summary", "status")}] + hits
+    entries = [get_entry(h["slug"]) for h in hits[:4]]
+    entries = [e for e in entries if e]
+    sources = [
+        {
+            "n": i,
+            "slug": e["slug"],
+            "title": e["title"],
+            "status": e["status"],
+            "url": next((c["url"] for c in e["claims"] if is_http_url(c["url"])), ""),
+        }
+        for i, e in enumerate(entries, 1)
+    ]
+    portal = portal_for(q)
+    if not entries:
+        answer = "I turned the tablet. That is not written, and I found nothing I could set down."
+        if portal:
+            answer = f"The tablet has nothing on {portal['host']}, but the doorway is open."
+        return {"query": q, "answer": answer, "mode": "tablet", "sources": [], "learned": learned, "portal": portal, "hits": hits}
+    answer = workers_ai(q, entries)
+    mode = "ai"
+    if not answer:
+        mode = "tablet"
+        answer = " ".join(f"{e['summary']} [{i}]" for i, e in enumerate(entries[:2], 1))
+    return {"query": q, "answer": answer, "mode": mode, "sources": sources, "learned": learned, "portal": portal, "hits": hits}
+
+
 def esc(value):
     return html.escape(str(value), quote=True)
 
@@ -486,6 +694,10 @@ class Handler(BaseHTTPRequestHandler):
             q = parse_qs(parsed.query).get("q", [""])[0]
             self.send_html(render_home(q))
             return
+        if path == "/api/ask":
+            q = parse_qs(parsed.query).get("q", [""])[0]
+            self.send_json(200, ask(q))
+            return
         if path == "/api/search":
             q = parse_qs(parsed.query).get("q", [""])[0]
             self.send_json(200, {"query": q, "hits": search(q)})
@@ -547,7 +759,9 @@ def main():
     init_db()
     seed()
     server = Server((HOST, PORT), Handler)
-    print(f"Nabu v0.2 on http://{HOST}:{PORT}")
+    print(f"Nabu v0.3 on http://{HOST}:{PORT}")
+    print("[nabu] sage:", "Workers AI " + CF_MODEL if CF_ACCOUNT_ID and CF_API_TOKEN else "reading the tablet (set CF_ACCOUNT_ID and CF_API_TOKEN for Workers AI)")
+    print("[nabu] learning:", f"Wikipedia, up to {LEARN_PER_HOUR} lessons an hour" if LEARN else "off")
     server.serve_forever()
 
 
