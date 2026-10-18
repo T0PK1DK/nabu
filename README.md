@@ -65,4 +65,12 @@ Verified means every stored claim has an http or https URL and a retrieval date.
 
 ## Preview
 
-`preview/` holds a single-file Nabu built as a claude.ai artifact. A search summons a book that flies in, opens, and writes the page while it streams: a direct answer, an at-a-glance box, sections, steps or a comparison table depending on what was asked, doorways to real sites, and related books. Follow-up questions add pages to the same book. Every summoned book is shelved in your library. Run `python3 preview/build.py` to produce `preview/nabu.html`.
+`preview/` holds a single-file Nabu built as a claude.ai artifact, where Claude writes the pages. Every search gets one answer-first page:
+
+- The answer in one or two sentences, then three to five key points.
+- An at-a-glance grid of facts, then depth shaped by intent: sections for a topic, numbered steps for a how-to, a table for a comparison, a timeline for history.
+- Confidence, what is not settled, and what may have changed, shown on the page instead of hidden.
+- Sources labeled official, reference, community, or video, plus one-tap live searches.
+- People also ask questions that answer inline, follow-ups that add to the page, Glance or Full depth, and a library of every page written for you.
+
+Run `python3 preview/build.py` to produce `preview/nabu.html`.
