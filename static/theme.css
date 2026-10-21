@@ -1,0 +1,85 @@
+:root {
+  --room: #100e0c;
+  --slab: #231b16;
+  --clay: #14100d;
+  --ink: #f3e6d4;
+  --muted: #a89278;
+  --line: rgba(243, 230, 212, .12);
+  --bronze: #c9854a;
+  --bronze-2: #e2b07a;
+  --good: #c5d2b2;
+  --draft: #e0c078;
+  --disputed: #d4846a;
+  --mark: #3a2a16;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--room); color: var(--ink); }
+html { -webkit-font-smoothing: antialiased; }
+body {
+  font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+  min-height: 100vh;
+}
+a { color: var(--bronze-2); }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--bronze-2);
+  outline-offset: 3px;
+}
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.brand {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--bronze-2);
+  text-decoration: none;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.doors {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.doors a {
+  color: var(--muted);
+  text-decoration: none;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.doors a:hover, .doors a[aria-current="page"] { color: var(--bronze-2); }
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: #8d7b68;
+}
+.status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.status.verified { color: var(--good); }
+.status.draft { color: var(--draft); }
+.status.disputed { color: var(--disputed); }
+.empty { margin: 18px 0; color: var(--muted); font-size: 17px; }
+.kind {
+  color: var(--bronze-2);
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+mark {
+  background: rgba(201, 133, 74, .28);
+  color: inherit;
+  padding: 0 .12em;
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
