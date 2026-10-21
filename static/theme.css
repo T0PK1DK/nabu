@@ -18,6 +18,9 @@ html { -webkit-font-smoothing: antialiased; }
 body {
   font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
   min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
 }
 a { color: var(--bronze-2); }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
@@ -28,7 +31,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 16px;
+  gap: 12px 16px;
   flex-wrap: wrap;
 }
 .brand {
@@ -43,7 +46,7 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 }
 .doors {
   display: flex;
-  gap: 14px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 .doors a {
@@ -52,6 +55,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   letter-spacing: .14em;
   text-transform: uppercase;
   font-size: 11px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
 }
 .doors a:hover, .doors a[aria-current="page"] { color: var(--bronze-2); }
 .status {
@@ -75,10 +82,74 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   text-transform: uppercase;
   font-size: 11px;
 }
+.chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid rgba(201,133,74,.35);
+  border-radius: 99px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  background: transparent;
+}
+.chip:hover, .chip[aria-current="true"] {
+  color: var(--bronze-2);
+  border-color: var(--bronze);
+  background: rgba(201,133,74,.12);
+}
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: .08em;
+}
+.meter .bar {
+  flex: 1;
+  height: 6px;
+  background: #3a2e24;
+  border-radius: 99px;
+  overflow: hidden;
+}
+.meter i {
+  display: block;
+  height: 6px;
+  background: var(--bronze);
+  border-radius: 99px;
+}
+.revise {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-size: 12px;
+  text-decoration: none;
+}
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0,0,0,0); border: 0;
+}
 mark {
   background: rgba(201, 133, 74, .28);
   color: inherit;
   padding: 0 .12em;
+}
+@media (max-width: 640px) {
+  .doors { width: 100%; justify-content: space-between; gap: 0; }
+  .doors a { padding: 0 4px; font-size: 10px; letter-spacing: .1em; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

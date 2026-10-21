@@ -20,7 +20,11 @@
   h2 { font-weight: 500; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--bronze-2); }
   ul { list-style: none; padding: 0; }
   li { border-top: 1px solid #3a2e24; padding: 8px 0; display: flex; justify-content: space-between; }
-  @media (max-width: 640px) { .counts { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) {
+    .wrap { padding: 18px 16px calc(80px + env(safe-area-inset-bottom)); }
+    .spoken { font-size: 18px; }
+    .counts { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>

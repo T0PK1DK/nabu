@@ -12,6 +12,9 @@
     drag: false,
     lastX: 0,
     lastY: 0,
+    moved: 0,
+    pointers: {},
+    pinch: 0,
     hover: null,
     t: 0
   };
@@ -134,21 +137,64 @@
     requestAnimationFrame(tick);
   }
 
+  function pointerCount() {
+    return Object.keys(state.pointers).length;
+  }
+
+  function pinchDistance() {
+    var points = Object.keys(state.pointers).map(function (id) { return state.pointers[id]; });
+    if (points.length < 2) return 0;
+    var dx = points[0].x - points[1].x;
+    var dy = points[0].y - points[1].y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
   canvas.addEventListener("pointerdown", function (event) {
+    state.pointers[event.pointerId] = { x: event.clientX, y: event.clientY };
     state.drag = true;
+    state.moved = 0;
     state.lastX = event.clientX;
     state.lastY = event.clientY;
+    state.pinch = pinchDistance();
     canvas.classList.add("drag");
+    try { canvas.setPointerCapture(event.pointerId); } catch (err) {}
   });
-  window.addEventListener("pointerup", function () {
-    state.drag = false;
-    canvas.classList.remove("drag");
+  window.addEventListener("pointerup", function (event) {
+    delete state.pointers[event.pointerId];
+    if (!pointerCount()) {
+      state.drag = false;
+      state.pinch = 0;
+      canvas.classList.remove("drag");
+    }
+  });
+  window.addEventListener("pointercancel", function (event) {
+    delete state.pointers[event.pointerId];
+    if (!pointerCount()) {
+      state.drag = false;
+      state.pinch = 0;
+      canvas.classList.remove("drag");
+    }
   });
   window.addEventListener("pointermove", function (event) {
     state.pointer = { x: event.clientX, y: event.clientY };
+    if (state.pointers[event.pointerId]) {
+      state.pointers[event.pointerId] = { x: event.clientX, y: event.clientY };
+    }
     if (!state.drag) return;
-    state.yaw += (event.clientX - state.lastX) * 0.006;
-    state.pitch = Math.max(-1.1, Math.min(1.1, state.pitch + (event.clientY - state.lastY) * 0.004));
+    if (pointerCount() >= 2) {
+      var next = pinchDistance();
+      if (state.pinch) {
+        state.zoom = Math.max(140, Math.min(520, state.zoom * (next / state.pinch)));
+      }
+      state.pinch = next;
+      state.moved += 8;
+      return;
+    }
+    var dx = event.clientX - state.lastX;
+    var dy = event.clientY - state.lastY;
+    state.moved += Math.abs(dx) + Math.abs(dy);
+    state.yaw += dx * 0.006;
+    state.pitch = Math.max(-1.1, Math.min(1.1, state.pitch + dy * 0.004));
     state.lastX = event.clientX;
     state.lastY = event.clientY;
   });
@@ -157,6 +203,7 @@
     state.zoom = Math.max(140, Math.min(520, state.zoom - event.deltaY * 0.2));
   }, { passive: false });
   canvas.addEventListener("click", function () {
+    if (state.moved > 8) return;
     if (state.hover) location.href = "/e/" + encodeURIComponent(state.hover.slug);
   });
   canvas.addEventListener("mousemove", function () {

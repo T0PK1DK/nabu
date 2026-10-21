@@ -46,14 +46,9 @@
   }
   button[type="submit"]:hover { background: var(--bronze-2); }
   button[type="submit"]:disabled { cursor: progress; opacity: .7; }
-  .facets {
-    display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 6px;
-  }
-  .facets select {
-    background: transparent; color: var(--ink); border: 1px solid rgba(201,133,74,.4);
-    border-radius: 2px; padding: 6px 10px; font: 13px/1.2 inherit;
-  }
-  .count { margin-left: auto; color: var(--muted); font-size: 12px; letter-spacing: .16em; }
+  .facets { display: grid; gap: 10px; margin: 14px 0 6px; }
+  .facet-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .count { color: var(--muted); font-size: 12px; letter-spacing: .16em; }
   .registers { margin-top: 10px; transition: opacity .25s ease; }
   .slab.searching .registers { opacity: .22; }
   .slab.searching .presence img { animation: lamp 1.1s ease-in-out infinite; }
@@ -78,18 +73,24 @@
     font-variant-numeric: tabular-nums; font-size: 12px; letter-spacing: .04em;
     color: var(--bronze); padding-top: 6px;
   }
-  .line { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; }
+  .line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px 16px; flex-wrap: wrap; }
   h2 { margin: 0; font-size: 23px; font-weight: 500; letter-spacing: -.02em; text-wrap: balance; }
   a.hit:hover h2 { color: var(--bronze-2); }
   .entry p, .entry .snip { margin: 6px 0 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
   .colophon { width: min(860px, 100%); margin: 16px auto 0; color: #6f5e4e; font-size: 14px; }
   @media (max-width: 640px) {
-    .room { padding: 14px 12px 40px; }
+    .room { padding: 12px 12px calc(40px + env(safe-area-inset-bottom)); }
     .slab { padding: 16px 14px 8px; }
-    .presence img { width: 68px; height: 90px; }
-    .voice { font-size: 18px; }
-    input[type="search"] { font-size: 24px; }
-    h2 { font-size: 20px; }
+    .presence { gap: 12px; margin: 12px 0 16px; }
+    .presence img { width: 60px; height: 80px; }
+    .voice { font-size: 18px; min-height: 0; }
+    input[type="search"] { font-size: 22px; }
+    button[type="submit"] { width: 44px; height: 44px; }
+    h2 { font-size: 19px; }
+    .line { align-items: flex-start; }
+    .entry p, .entry .snip { font-size: 15px; }
+    .chips { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+    .chip { flex: none; }
   }
 </style>
 </head>
@@ -128,10 +129,10 @@
           </button>
         </div>
         <div class="facets">
-          <label class="visually-hidden" for="kind">Kind</label>
-          <select id="kind" name="kind">{{KIND_OPTIONS}}</select>
-          <label class="visually-hidden" for="status">Status</label>
-          <select id="status" name="status">{{STATUS_OPTIONS}}</select>
+          <input type="hidden" id="kind" name="kind" value="{{KIND}}">
+          <input type="hidden" id="status" name="status" value="{{STATUS}}">
+          <div class="facet-row" id="kind-chips" role="group" aria-label="Kind">{{KIND_CHIPS}}</div>
+          <div class="facet-row" id="status-chips" role="group" aria-label="Status">{{STATUS_CHIPS}}</div>
           <span class="count" id="count">{{LABEL}} {{COUNT}}</span>
         </div>
       </form>
@@ -141,12 +142,6 @@
     </article>
     <p class="colophon">He keeps the tablet. He does not invent the fate. {{LEDGER}}</p>
   </div>
-<style>
-  .visually-hidden {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0,0,0,0); border: 0;
-  }
-</style>
 <script src="/static/search.js"></script>
 </body>
 </html>
