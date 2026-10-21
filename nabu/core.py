@@ -732,8 +732,8 @@ def _force_layout(nodes: list[str], edges: list[tuple[str, str]], steps: int = 2
         return {}
     rng = random.Random(7)
     n = len(nodes)
-    area = 12.0
-    k = math.sqrt(area / max(n, 1))
+    area = 36.0
+    k = math.sqrt(area / max(n, 1)) * 1.35
     pos = {
         slug: [
             rng.uniform(-2.2, 2.2),
@@ -819,15 +819,25 @@ def graph(path: Path | None = None) -> dict:
         )
         for target in doc["wiki"]:
             add_edge(doc["slug"], target, "wiki", 1.0)
-    # Lexical edges so isolated tablets still sit near their subject cluster.
+    # Keep only the strongest lexical neighbours. A near-complete graph
+    # collapses the force layout into one pile.
+    related_pairs: list[tuple[float, str, str]] = []
     for i, a in enumerate(docs):
         for b in docs[i + 1 :]:
             score = _cosine(vectors[a["slug"]], vectors[b["slug"]])
             shared = a["hosts"] & b["hosts"]
             if shared:
                 score += 0.12
-            if score >= 0.22:
-                add_edge(a["slug"], b["slug"], "related", score)
+            if score >= 0.28:
+                related_pairs.append((score, a["slug"], b["slug"]))
+    related_pairs.sort(reverse=True)
+    kept = Counter()
+    for score, a, b in related_pairs:
+        if kept[a] >= 2 or kept[b] >= 2:
+            continue
+        add_edge(a, b, "related", score)
+        kept[a] += 1
+        kept[b] += 1
     layout = _force_layout(
         [n["slug"] for n in nodes],
         [(e["from"], e["to"]) for e in edges],

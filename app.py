@@ -223,7 +223,8 @@ def meter(ratio: float) -> str:
     pct = int(round(max(0.0, min(1.0, ratio)) * 100))
     return (
         f'<div class="meter" role="img" aria-label="Citation completeness {pct} percent">'
-        f'<i style="width:{pct}%"></i><span>{pct}% sourced</span></div>'
+        f'<span class="bar"><i style="width:{pct}%"></i></span>'
+        f"<span>{pct}% sourced</span></div>"
     )
 
 

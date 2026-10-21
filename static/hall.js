@@ -43,15 +43,15 @@
     });
     nodes.forEach(function (node, index) {
       var p = project(node);
-      var w = index === 0 ? 54 : 38;
+      var w = index === 0 ? 72 : 52;
       var h = w * 1.25;
       node._hit = { x: p.x - w / 2, y: p.y - h / 2, w: w, h: h, slug: node.slug };
-      ctx.fillStyle = index === 0 ? "#3a2a1c" : "#231b16";
-      ctx.strokeStyle = "#c9854a";
+      ctx.fillStyle = index === 0 ? "#4a3424" : "#2b211a";
+      ctx.strokeStyle = "#e2b07a";
       ctx.strokeRect(p.x - w / 2, p.y - h / 2, w, h);
       ctx.fillRect(p.x - w / 2, p.y - h / 2, w, h);
       ctx.fillStyle = "#f3e6d4";
-      ctx.font = "11px Palatino, Georgia, serif";
+      ctx.font = "12px Palatino, Georgia, serif";
       ctx.textAlign = "center";
       ctx.fillText((node.title || "").slice(0, 16), p.x, p.y);
     });

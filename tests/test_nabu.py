@@ -190,6 +190,7 @@ class StoreTests(TmpTablet):
         self.assertIn("nabu", slugs)
         self.assertTrue(g["edges"])
         self.assertTrue(all("x" in n and "z" in n for n in g["nodes"]))
+        self.assertLess(len(g["edges"]), len(g["nodes"]) * 3)
 
     def test_unsourced_propose_stays_draft(self):
         code, body = propose(

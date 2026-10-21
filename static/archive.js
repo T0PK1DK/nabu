@@ -86,8 +86,8 @@
     projected.forEach(function (item) {
       var node = item.node;
       var p = item.p;
-      var width = Math.max(86, 0.42 * p.scale);
-      var height = width * 1.28;
+      var width = Math.max(92, Math.min(168, 0.55 * p.scale));
+      var height = width * 1.22;
       var x = p.x - width / 2;
       var y = p.y - height / 2;
       node._hit = { x: x, y: y, w: width, h: height };
