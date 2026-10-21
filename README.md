@@ -1,8 +1,8 @@
-# Nabu v0.2
+# Nabu v0.3
 
-Nabu v0.2 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.
+A local cited encyclopedia. Humans search the tablet. An agent uses the same SQLite file through the API. Unsourced text is stored as a draft and cannot be marked verified. There is no crawler, no embeddings, and no accounts.
 
-A local cited encyclopedia. Humans use the search box. An agent uses the same database through the API, not the HTML. Unsourced text is stored as a draft and cannot be marked verified. There is no crawler, no embeddings, and no accounts.
+Version 0.3 adds claim-aware FTS5 search (Porter stemming, prefix match, column-weighted BM25, snippets), kind and status filters, `[[wikilinks]]` with backlinks, related entries, revision snapshots, a human propose form, a ledger, and a 3D tablet archive. Verification now requires an http(s) URL **and** an ISO retrieval date (`YYYY-MM-DD`). Each sourced claim also gets a constructed [Wayback Machine](https://web.archive.org/) locator.
 
 ## Run
 
@@ -12,7 +12,29 @@ python3 app.py
 
 Open http://127.0.0.1:8787
 
-`nabu.db` is created on start and seeded from `seed.json` when the tablet is empty. Delete `nabu.db` to reseed.
+`nabu.db` is created on start and seeded from `seed.json` when the tablet is empty. Delete `nabu.db` to reseed. The schema migrates in place if an older FTS table is present.
+
+```bash
+NABU_HOST=127.0.0.1 NABU_PORT=8787 NABU_DB=./nabu.db python3 app.py
+```
+
+## Test
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+CI runs the same command on every push ([`.github/workflows/test.yml`](.github/workflows/test.yml)).
+
+## Doors
+
+| Path | What it is |
+| --- | --- |
+| `/` | Search the tablet. Filter by kind or status. |
+| `/e/:slug` | An entry, its claims, related tablets, backlinks, revisions. |
+| `/archive` | 3D hall of tablets. Orbit, click to read. Not a game. |
+| `/propose` | Cut a new line. Same judge as the API. |
+| `/ledger` | Counts, kinds, source hosts. |
 
 ## Unsourced propose
 
@@ -27,15 +49,45 @@ curl -sS -X POST http://127.0.0.1:8787/api/propose \
 The response is a draft, and it says why:
 
 ```json
-{"ok": true, "slug": "unsourced-note", "status": "draft", "reason": "Stored as draft because claim 1 has no source URL. Unsourced text cannot be marked verified.", "requested_status": "verified"}
+{"ok": true, "slug": "unsourced-note", "status": "draft", "reason": "Stored as draft because claim 1 has no source URL. Unsourced text cannot be marked verified.", "requested_status": "verified", "completeness": {"claims": 1, "sourced": 0, "dated": 1, "complete": 0, "ratio": 0.0}, "links": []}
+```
+
+Judge the same payload without writing:
+
+```bash
+curl -sS -X POST http://127.0.0.1:8787/api/judge \
+  -H 'Content-Type: application/json' \
+  -d '{"slug":"unsourced-note","title":"Unsourced note","kind":"note","summary":"A line with no source.","body":"Only judged.","status":"verified","claims":[{"text":"A claim without a source.","retrieved":"2026-10-10"}]}'
 ```
 
 ## API
 
-- `GET /api/search?q=` — ranked hits: slug, title, kind, summary, status. An empty `q` lists the tablet.
-- `GET /api/e/:slug` — the entry and its claims.
-- `POST /api/propose` — create or replace an entry. If any claim lacks a source URL or a retrieval date, status is forced to `draft`.
+- `GET /api/search?q=&kind=&status=&limit=` — ranked hits with snippets. Empty `q` lists the tablet.
+- `GET /api/e/:slug` — the entry, claims (with Wayback links), related, backlinks, revisions.
+- `GET /api/e/:slug/revisions` — earlier cuts of that slug.
+- `GET /api/graph` — nodes and edges for the archive hall.
+- `GET /api/stats` — counts by status, kind, and source host.
+- `GET /api/export` — the whole tablet as JSON.
+- `GET /api/health` — liveness and version.
+- `POST /api/propose` — create or replace an entry. Incomplete claims force `draft`.
+- `POST /api/judge` — the same rules, no write.
 
 ## Rule
 
-Verified means every stored claim has an http or https URL and a retrieval date. FTS5 is the only ranker. Pages are not scraped from Wikipedia.
+Verified means every stored claim has an http or https URL with a real host and an ISO retrieval date that is not in the future. FTS5 is the only ranker. Pages are not scraped from Wikipedia.
+
+Wikilinks in a body look like `[[fts5]]` or `[[nabu-god|Nabu]]`. They become edges in the graph and backlinks on the target entry.
+
+## Docs
+
+- [docs/RESEARCH.md](docs/RESEARCH.md) — comparable encyclopedias, local search, citation models, and why the archive is a hall rather than a game.
+- [docs/HANDOFF.md](docs/HANDOFF.md) — prompt and invariants for the next editor.
+
+## Comparable projects (not forks)
+
+- [SQLite FTS5](https://www.sqlite.org/fts5.html)
+- [Kiwix](https://kiwix.org/en/)
+- [Wikidata statements](https://www.wikidata.org/wiki/Help:Statements)
+- [Wayback Machine](https://web.archive.org/)
+- [Scholarpedia](http://www.scholarpedia.org/)
+- [Obsidian linking](https://obsidian.md/help/link-notes)

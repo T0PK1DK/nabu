@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Archive — Nabu</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23100e0c' width='32' height='32'/%3E%3Cpath d='M8 26 L16 6 L20 26 Z' fill='%23c9854a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/theme.css">
+<style>
+  body { overflow: hidden; }
+  .hud {
+    position: absolute; inset: 20px 20px auto 20px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    pointer-events: none; z-index: 2;
+  }
+  .hud > * { pointer-events: auto; }
+  .spoken { max-width: 520px; font-size: 20px; margin: 16px 0 0; }
+  #stage {
+    display: block; width: 100vw; height: 100vh;
+    cursor: grab; background: radial-gradient(circle at 50% 20%, #1b1510, #070605 70%);
+  }
+  #stage.drag { cursor: grabbing; }
+  .legend {
+    color: var(--muted); font-size: 13px; max-width: 280px; text-align: right; line-height: 1.45;
+  }
+</style>
+</head>
+<body>
+  <canvas id="stage" width="1200" height="800" aria-label="Three-dimensional tablet archive"></canvas>
+  <div class="hud">
+    <div>
+      <header class="nav">
+        <a class="brand" href="/">Nabu</a>
+        <nav class="doors">
+          <a href="/">Tablet</a>
+          <a href="/archive" aria-current="page">Archive</a>
+          <a href="/propose">Propose</a>
+          <a href="/ledger">Ledger</a>
+        </nav>
+      </header>
+      <p class="spoken" id="voice">{{VOICE}}</p>
+    </div>
+    <p class="legend">Drag to orbit. Scroll to approach. Click a tablet to read it. This is a hall, not a game.</p>
+  </div>
+  <script src="/static/archive.js"></script>
+</body>
+</html>

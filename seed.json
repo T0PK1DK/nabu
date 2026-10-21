@@ -5,13 +5,13 @@
       "title": "Nabu",
       "kind": "project",
       "summary": "A local cited encyclopedia and search index. Humans search the tablet. An agent uses the same store through the API. A line without a source stays a draft.",
-      "body": "Nabu is a small search engine over a structured knowledge store. It is not a copy of the web, and it is not a fork of Wikipedia. Version 0.2 is one SQLite file. Search is FTS5. There is no crawler and no account system.\n\nTwo doors read that file. A person uses the search box. An agent calls GET /api/search, GET /api/e/:slug, and POST /api/propose. If a proposal asks to be verified and any claim lacks a source URL or a retrieval date, the text is kept and the status is draft. The response says why.\n\nThe name is the Babylonian god of writing and scribes. He keeps the tablet. He does not invent the fate.",
+      "body": "Nabu is a small search engine over a structured knowledge store. It is not a copy of the web, and it is not a fork of Wikipedia. Version 0.3 is one SQLite file. Search is [[fts5|FTS5]] with Porter stemming, column-weighted BM25, and snippets. There is no crawler and no account system.\n\nA person uses the search box, the 3D [[tablet-archive|tablet archive]], or the propose form. An agent calls GET /api/search, GET /api/e/:slug, GET /api/graph, and POST /api/propose. If a proposal asks to be verified and any claim lacks a source URL or an ISO retrieval date, the text is kept and the status is draft. The response says why. Each sourced claim also carries a constructed Wayback link.\n\nThe name is the Babylonian god of writing and scribes, [[nabu-god|Nabu]]. He keeps the tablet. He does not invent the fate.",
       "status": "verified",
       "claims": [
         {
-          "text": "Nabu v0.2 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.",
+          "text": "Nabu v0.3 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.",
           "url": "https://raw.githubusercontent.com/T0PK1DK/nabu/main/README.md",
-          "retrieved": "2026-10-10"
+          "retrieved": "2026-10-20"
         },
         {
           "text": "Nabu is the patron deity of Borsippa, god of wisdom and writing, and the minister and scribe of Marduk.",
@@ -25,7 +25,7 @@
       "title": "Nabu (god)",
       "kind": "deity",
       "summary": "Babylonian god of writing, scribes, and wisdom. Patron of Borsippa. Minister and scribe of Marduk. The Bible calls him Nebo.",
-      "body": "Nabu, Akkadian Nabû, is the god this index is named for. The Oracc entry calls him patron deity of Borsippa and the minister and scribe of Marduk. Writing was the office: he took it over from the goddess Nidaba, and scribes invoked him in the colophons of texts. From writing he became lord of wisdom, a trait the same entry traces to his ancestor Enki/Ea.\n\nOnce a year the scribal duty had a date. On the 11th of Nisannu, at the end of the akitu festival, he was said to inscribe the fate of the land on the Tablet of Destinies, in accordance with Enūma eliš. His temple at Borsippa was Ezida. The Hebrew Bible names him Nebo.\n\nThis page is a short original entry. It does not copy a Wikipedia article. The claims point at the Oracc pages they were read from, and at the day they were read.",
+      "body": "Nabu, Akkadian Nabû, is the god this index is named for. See also the project page [[nabu]]. The Oracc entry calls him patron deity of Borsippa and the minister and scribe of Marduk. Writing was the office: he took it over from the goddess Nidaba, and scribes invoked him in the colophons of texts. From writing he became lord of wisdom, a trait the same entry traces to his ancestor Enki/Ea.\n\nOnce a year the scribal duty had a date. On the 11th of Nisannu, at the end of the akitu festival, he was said to inscribe the fate of the land on the [[tablet-of-destinies|Tablet of Destinies]], in accordance with Enūma eliš. His temple at Borsippa was Ezida. The Hebrew Bible names him Nebo.\n\nThis page is a short original entry. It does not copy a Wikipedia article. The claims point at the Oracc pages they were read from, and at the day they were read.",
       "status": "verified",
       "claims": [
         {
@@ -55,7 +55,7 @@
       "title": "Tablet of Destinies",
       "kind": "object",
       "summary": "In the account used here, the tablet on which Nabu inscribed the fate of the land at the end of the akitu. Not the same thing as the Dais of Destinies.",
-      "body": "The Tablet of Destinies, in the Oracc entry for Nabu, is the document he wrote at the close of the New Year. On the 11th of Nisannu, after the fate of the land had been settled with Marduk, Nabu inscribed it on that tablet, in accordance with the creation myth Enūma eliš.\n\nA second object shares the word and should not be folded into the first. At Borsippa, inside Ezida, Nabû stopped at the Dais of Destinies, Akkadian parak šīmāti, when he travelled between Borsippa and Babylon during the akitu. A dais is a seat. A tablet is a record.\n\nNabu the index borrows the job of the tablet, not the theology. A verified claim is a line that made it onto the record. A draft has not.",
+      "body": "The Tablet of Destinies, in the Oracc entry for [[nabu-god|Nabu]], is the document he wrote at the close of the New Year. On the 11th of Nisannu, after the fate of the land had been settled with Marduk, Nabu inscribed it on that tablet, in accordance with the creation myth Enūma eliš.\n\nA second object shares the word and should not be folded into the first. At Borsippa, inside Ezida, Nabû stopped at the Dais of Destinies, Akkadian parak šīmāti, when he travelled between Borsippa and Babylon during the akitu. A dais is a seat. A tablet is a record.\n\n[[nabu|Nabu the index]] borrows the job of the tablet, not the theology. A verified claim is a line that made it onto the record. A draft has not.",
       "status": "verified",
       "claims": [
         {
@@ -99,8 +99,8 @@
       "slug": "fts5",
       "title": "FTS5",
       "kind": "tool",
-      "summary": "SQLite’s full-text search extension. Nabu v0.2 uses it as the only ranker. No embeddings.",
-      "body": "FTS5 is the full-text search module that ships with SQLite. It is a virtual table. An application stores text in it and asks MATCH. The module returns the documents that contain the terms, and bm25 ranks them.\n\nNabu indexes title, summary, and body in one FTS5 table. An empty query does not search. It lists the tablet. A query with words is ranked by bm25 and nothing else. There is no vector index in this version.",
+      "summary": "SQLite’s full-text search extension. Nabu uses it as the only ranker. No embeddings.",
+      "body": "FTS5 is the full-text search module that ships with SQLite. It is a virtual table. An application stores text in it and asks MATCH. The module returns the documents that contain the terms, and [[bm25|BM25]] ranks them. Auxiliary functions can highlight a match or cut a snippet around it.\n\n[[nabu|Nabu]] indexes title, summary, body, and claims in one FTS5 table, with heavier BM25 weight on the title than on the body. An empty query does not search. It lists the tablet. There is no vector index in this version.",
       "status": "verified",
       "claims": [
         {
@@ -127,6 +127,100 @@
           "text": "The site states that its buy buttons use Amazon Associates tag actuallywo08c-20.",
           "url": "https://actuallyworthit.com/",
           "retrieved": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "slug": "bm25",
+      "title": "BM25",
+      "kind": "tool",
+      "summary": "A probabilistic ranking function used by SQLite FTS5. Lower scores are better matches. Columns can be weighted.",
+      "body": "BM25 is the ranker inside [[fts5|FTS5]]. The SQLite auxiliary function bm25() returns a real number for the current row; a better match is a smaller number. Extra arguments are per-column weights, not new values of k1 and b.\n\n[[nabu|Nabu]] calls bm25 with heavier weight on title than on summary, claims, or body. That is a ranking choice, not a second index. There are still no embeddings.",
+      "status": "verified",
+      "claims": [
+        {
+          "text": "The FTS5 bm25() auxiliary function returns a real value reflecting how well the current row matches the query; better matches receive smaller numbers.",
+          "url": "https://www.sqlite.org/fts5.html",
+          "retrieved": "2026-10-20"
+        }
+      ]
+    },
+    {
+      "slug": "wayback-machine",
+      "title": "Wayback Machine",
+      "kind": "tool",
+      "summary": "Internet Archive service that stores dated snapshots of public web pages. A timestamped URL is the usual citation locator.",
+      "body": "The Wayback Machine keeps captures of public URLs. A capture is addressed as https://web.archive.org/web/YYYYMMDD/ followed by the original URL. Citation guides treat that timestamped locator as the stable form when the live page can change.\n\n[[nabu|Nabu]] does not fetch archive.org. It constructs a Wayback URL from a claim’s retrieval date so a later reader can try the page as it stood near that day. A constructed link is not proof that a capture exists.",
+      "status": "verified",
+      "claims": [
+        {
+          "text": "The Wayback Machine is a public web archive of dated website snapshots operated by the Internet Archive.",
+          "url": "https://web.archive.org/",
+          "retrieved": "2026-10-20"
+        }
+      ]
+    },
+    {
+      "slug": "wikidata-statement",
+      "title": "Wikidata statement",
+      "kind": "idea",
+      "summary": "A Wikidata statement pairs a property with a value and may carry a reference. Wikidata records what a source says, not a bare fact.",
+      "body": "On Wikidata, a statement is a property–value pair that can be qualified and referenced. The project’s source help says most statements should be verifiable. The glossary is explicit: Wikidata does not decide whether a claim is correct; it reports that the claim appears in a reference.\n\nThat is the same office [[nabu|Nabu]] keeps on a smaller tablet. A verified claim here is text plus an http(s) URL plus an ISO retrieval date. See also [[wayback-machine]].",
+      "status": "verified",
+      "claims": [
+        {
+          "text": "Wikidata statements consist of a property-value pair and may include qualifiers, references, and ranks.",
+          "url": "https://www.wikidata.org/wiki/Help:Statements",
+          "retrieved": "2026-10-20"
+        },
+        {
+          "text": "Wikidata does not aim to answer whether a claim is correct, but only whether the claim appears in a reference.",
+          "url": "https://www.wikidata.org/wiki/Wikidata:Glossary",
+          "retrieved": "2026-10-20"
+        }
+      ]
+    },
+    {
+      "slug": "kiwix",
+      "title": "Kiwix",
+      "kind": "tool",
+      "summary": "Offline reader for ZIM archives of Wikipedia and other sites. Local full-text search. No account required.",
+      "body": "Kiwix opens compressed ZIM files so a machine can search and read an encyclopedia without the network. The public feature list includes full-text search, bookmarks, a local HTTP server, and clients for desktop and phones.\n\n[[nabu|Nabu]] borrows the offline, account-free stance and not the dump. This tablet is original entries with claims, not a ZIM of Wikipedia.",
+      "status": "verified",
+      "claims": [
+        {
+          "text": "Kiwix is an offline reader for web content, especially intended to make Wikipedia available offline by reading ZIM files.",
+          "url": "https://www.kiwix.org/en/",
+          "retrieved": "2026-10-20"
+        }
+      ]
+    },
+    {
+      "slug": "tablet-archive",
+      "title": "Tablet archive",
+      "kind": "place",
+      "summary": "Nabu’s 3D hall of clay tablets. Each node is an entry. Edges are wiki links and related scores. Not a game.",
+      "body": "The tablet archive is a spatial view of the same SQLite file the search box reads. A force-directed layout places entries in three dimensions. Drag orbits the hall. A click opens the entry.\n\nThe idea is closer to a museum hall or a local graph than to a score-driven game. [[nabu|Nabu]] still verifies by sources. The hall does not invent a fate.",
+      "status": "verified",
+      "claims": [
+        {
+          "text": "Nabu v0.3 exposes a knowledge graph of entries at GET /api/graph and renders it as an orbitable 3D tablet hall.",
+          "url": "https://raw.githubusercontent.com/T0PK1DK/nabu/main/README.md",
+          "retrieved": "2026-10-20"
+        }
+      ]
+    },
+    {
+      "slug": "citation-gap",
+      "title": "Citation gap",
+      "kind": "note",
+      "summary": "A draft on this tablet that shows what happens when a claim has no source URL.",
+      "body": "This note exists so the ledger can show a draft. It claims something and does not point at a page. [[nabu|Nabu]] must keep the text and refuse to mark it verified.",
+      "status": "verified",
+      "claims": [
+        {
+          "text": "An unsourced line on this tablet is stored and cannot be marked verified.",
+          "retrieved": "2026-10-20"
         }
       ]
     }
