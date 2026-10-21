@@ -1,8 +1,10 @@
-# Nabu v0.3
+# Nabu v0.3.1
 
 A local cited encyclopedia. Humans search the tablet. An agent uses the same SQLite file through the API. Unsourced text is stored as a draft and cannot be marked verified. There is no crawler, no embeddings, and no accounts.
 
 Version 0.3 adds claim-aware FTS5 search (Porter stemming, prefix match, column-weighted BM25, snippets), kind and status filters, `[[wikilinks]]` with backlinks, related entries, revision snapshots, a human propose form, a ledger, and a 3D tablet archive. Verification now requires an http(s) URL **and** an ISO retrieval date (`YYYY-MM-DD`). Each sourced claim also gets a constructed [Wayback Machine](https://web.archive.org/) locator.
+
+Version 0.3.1 revises an existing tablet from `/propose?slug=…`, shows a live citation-completeness meter, groups claims by source host, and fixes FTS snippets so a claim-only match quotes the claim instead of the summary. Search filters are chips. The archive no longer follows a drag as a click.
 
 ## Run
 
@@ -30,10 +32,11 @@ CI runs the same command on every push ([`.github/workflows/test.yml`](.github/w
 
 | Path | What it is |
 | --- | --- |
-| `/` | Search the tablet. Filter by kind or status. |
-| `/e/:slug` | An entry, its claims, related tablets, backlinks, revisions. |
-| `/archive` | 3D hall of tablets. Orbit, click to read. Not a game. |
-| `/propose` | Cut a new line. Same judge as the API. |
+| `/` | Search the tablet. Filter by kind or status chips. |
+| `/e/:slug` | An entry, its claims grouped by host, related tablets, backlinks, revisions. **Revise this tablet** opens the propose form already filled. |
+| `/archive` | 3D hall of tablets. Orbit, pinch or scroll to approach, click to read. Not a game. |
+| `/propose` | Cut a new line. Same judge as the API. The completeness meter updates as claims change. |
+| `/propose?slug=nabu` | Load that tablet into the form and replace it. A replace still writes a revision. |
 | `/ledger` | Counts, kinds, source hosts. |
 
 ## Unsourced propose

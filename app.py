@@ -11,7 +11,7 @@ import json
 import os
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
 from nabu import __version__
 from nabu.core import (
@@ -104,11 +104,36 @@ def render_hits(hits: list[dict]) -> str:
     return "".join(parts)
 
 
-def facet_options(field: str, selected: str, values: list[str]) -> str:
-    parts = [f'<option value=""{" selected" if not selected else ""}>all {esc(field)}</option>']
+def search_href(q: str = "", kind: str = "", status: str = "") -> str:
+    params = []
+    if q:
+        params.append("q=" + quote_plus(q))
+    if kind:
+        params.append("kind=" + quote_plus(kind))
+    if status:
+        params.append("status=" + quote_plus(status))
+    return "/?" + "&".join(params) if params else "/"
+
+
+def render_chips(field: str, selected: str, values: list[str], *, q: str, kind: str, status: str) -> str:
+    facet = "kind" if field.startswith("kind") else "status"
+    parts = []
+    blank_href = search_href(q, "" if facet == "kind" else kind, "" if facet == "status" else status)
+    parts.append(
+        f'<a class="chip" href="{esc(blank_href)}" data-facet="{facet}" data-value="" '
+        f'aria-current="{"true" if not selected else "false"}">all {esc(field)}</a>'
+    )
     for value in values:
-        flag = " selected" if value == selected else ""
-        parts.append(f'<option value="{esc(value)}"{flag}>{esc(value)}</option>')
+        href = search_href(
+            q,
+            value if facet == "kind" else kind,
+            value if facet == "status" else status,
+        )
+        current = "true" if value == selected else "false"
+        parts.append(
+            f'<a class="chip" href="{esc(href)}" data-facet="{facet}" data-value="{esc(value)}" '
+            f'aria-current="{current}">{esc(value)}</a>'
+        )
     return "".join(parts)
 
 
@@ -133,9 +158,9 @@ def render_home(q: str, kind: str = "", status: str = "") -> bytes:
             "LABEL": esc(label),
             "COUNT": f"{len(hits):02d}",
             "VOICE": esc(voice_for(q, len(hits))),
-            "KIND_OPTIONS": facet_options("kinds", kind, kinds),
-            "STATUS_OPTIONS": facet_options(
-                "statuses", status, ["draft", "verified", "disputed"]
+            "KIND_CHIPS": render_chips("kinds", kind, kinds, q=q, kind=kind, status=status),
+            "STATUS_CHIPS": render_chips(
+                "statuses", status, ["draft", "verified", "disputed"], q=q, kind=kind, status=status
             ),
             "KIND": esc(kind),
             "STATUS": esc(status),
@@ -163,29 +188,50 @@ def render_wiki_body(body: str) -> str:
     )
 
 
+def render_claim_item(claim: dict) -> str:
+    url = claim["url"]
+    if claim.get("sourced"):
+        src = f'<a class="src" href="{esc(url)}">{esc(url)}</a>'
+    elif url:
+        src = f'<span class="src">{esc(url)}</span>'
+    else:
+        src = '<span class="src missing">No source URL</span>'
+    when = claim["retrieved"] or "no retrieval date"
+    archive = ""
+    if claim.get("archive"):
+        archive = (
+            f'<a class="archive" href="{esc(claim["archive"])}">'
+            f"Wayback near {esc(claim['retrieved'])}</a>"
+        )
+    return (
+        f"<li><p>{esc(claim['text'])}</p>{src}{archive}"
+        f'<span class="when">retrieved {esc(when)}</span></li>'
+    )
+
+
 def render_claims(claims: list[dict]) -> str:
     if not claims:
-        return "<li>No claims. This entry cannot be verified.</li>"
-    parts = []
+        return (
+            '<section class="claim-group">'
+            "<h3>Claims</h3>"
+            "<ol><li>No claims. This entry cannot be verified.</li></ol>"
+            "</section>"
+        )
+    groups: dict[str, list[dict]] = {}
+    order: list[str] = []
     for claim in claims:
-        url = claim["url"]
-        if claim.get("sourced"):
-            src = f'<a class="src" href="{esc(url)}">{esc(url)}</a>'
-        elif url:
-            src = f'<span class="src">{esc(url)}</span>'
-        else:
-            src = '<span class="src missing">No source URL</span>'
-        when = claim["retrieved"] or "no retrieval date"
-        archive = ""
-        if claim.get("archive"):
-            archive = (
-                f'<a class="archive" href="{esc(claim["archive"])}">'
-                f"Wayback near {esc(claim['retrieved'])}</a>"
-            )
-        host = f'<span class="host">{esc(claim["host"])}</span>' if claim.get("host") else ""
+        key = claim.get("host") or "Unsourced"
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(claim)
+    parts = []
+    for host in order:
+        items = "".join(render_claim_item(claim) for claim in groups[host])
+        extra = " unsourced" if host == "Unsourced" else ""
         parts.append(
-            f"<li><p>{esc(claim['text'])}</p>{src}{host}{archive}"
-            f'<span class="when">retrieved {esc(when)}</span></li>'
+            f'<section class="claim-group{extra}">'
+            f"<h3>{esc(host)}</h3><ol>{items}</ol></section>"
         )
     return "".join(parts)
 
@@ -228,31 +274,33 @@ def meter(ratio: float) -> str:
     )
 
 
+def missing_entry_map(slug: str = "", summary: str = "This slug is not in the index.") -> dict:
+    return {
+        "TITLE": "Not on the tablet",
+        "KIND": "",
+        "STATUS": "",
+        "SUMMARY": esc(summary),
+        "BODY": "",
+        "CLAIMS": (
+            '<section class="claim-group">'
+            "<h3>Claims</h3><ol><li>No claims.</li></ol></section>"
+        ),
+        "UPDATED": "",
+        "VOICE": "That page is not cut into the clay.",
+        "RELATED": '<p class="empty">Nothing nearby.</p>',
+        "BACKLINKS": '<p class="empty">No backlinks.</p>',
+        "REVISIONS": "<li>No earlier cuts of this tablet.</li>",
+        "METER": meter(0),
+        "SLUG": esc(slug),
+        "GRAPH": "[]",
+        "REVISE": "",
+    }
+
+
 def render_entry(slug: str):
     entry = get_entry(slug)
     if not entry:
-        return (
-            render_template(
-                "entry.html",
-                {
-                    "TITLE": "Not on the tablet",
-                    "KIND": "",
-                    "STATUS": "",
-                    "SUMMARY": "This slug is not in the index.",
-                    "BODY": "",
-                    "CLAIMS": "<li>No claims.</li>",
-                    "UPDATED": "",
-                    "VOICE": "That page is not cut into the clay.",
-                    "RELATED": '<p class="empty">Nothing nearby.</p>',
-                    "BACKLINKS": '<p class="empty">No backlinks.</p>',
-                    "REVISIONS": "<li>No earlier cuts of this tablet.</li>",
-                    "METER": meter(0),
-                    "SLUG": esc(slug),
-                    "GRAPH": "[]",
-                },
-            ),
-            404,
-        )
+        return (render_template("entry.html", missing_entry_map(slug)), 404)
     updated = entry["updated_at"].replace("T", " ").replace("Z", " UTC")
     neighborhood = {
         "center": entry["slug"],
@@ -290,6 +338,10 @@ def render_entry(slug: str):
                 "METER": meter((entry.get("completeness") or {}).get("ratio") or 0),
                 "SLUG": esc(entry["slug"]),
                 "GRAPH": json.dumps(neighborhood, ensure_ascii=False).replace("<", "\\u003c"),
+                "REVISE": (
+                    f'<a class="revise" href="/propose?slug={esc(entry["slug"])}">'
+                    "Revise this tablet</a>"
+                ),
             },
         ),
         200,
@@ -325,6 +377,89 @@ def render_ledger() -> bytes:
 
 def query_value(parsed, name: str) -> str:
     return parse_qs(parsed.query).get(name, [""])[0]
+
+
+def status_options(selected: str) -> str:
+    parts = []
+    for name in ("verified", "draft", "disputed"):
+        flag = " selected" if name == selected else ""
+        parts.append(f'<option value="{name}"{flag}>{name}</option>')
+    return "".join(parts)
+
+
+def render_propose_claims(claims: list[dict], today: str) -> str:
+    if not claims:
+        return ""
+    parts = []
+    for i, claim in enumerate(claims, 1):
+        parts.append(
+            f"""<div class="claim">
+  <div class="claim-head"><span>Claim {i}</span>
+    <button type="button" class="ghost remove-claim">Remove</button></div>
+  <label>Text
+    <textarea name="text" placeholder="A single claim, one sentence.">{esc(claim.get("text") or "")}</textarea>
+  </label>
+  <label>Source URL
+    <input name="url" type="url" placeholder="https://…" value="{esc(claim.get("url") or "")}">
+  </label>
+  <label>Retrieved
+    <input name="retrieved" type="date" placeholder="YYYY-MM-DD" value="{esc(claim.get("retrieved") or today)}">
+  </label>
+</div>"""
+        )
+    return "".join(parts)
+
+
+def render_propose(slug: str = "") -> bytes:
+    slug = (slug or "").strip().lower()
+    today = today_iso()
+    entry = get_entry(slug) if slug else None
+    if entry:
+        voice = "This tablet is already on the clay. Revise it. I will still refuse unsourced verification."
+        requested = entry.get("status") or "verified"
+        ratio = (entry.get("completeness") or {}).get("ratio") or 0
+        banner = (
+            f'<p class="banner">Editing <a href="/e/{esc(entry["slug"])}">{esc(entry["title"])}</a>. '
+            "A replace writes a revision snapshot.</p>"
+        )
+        return render_template(
+            "propose.html",
+            {
+                "VOICE": esc(voice),
+                "TODAY": esc(today),
+                "SLUG": esc(entry["slug"]),
+                "KIND": esc(entry["kind"]),
+                "TITLE": esc(entry["title"]),
+                "SUMMARY": esc(entry["summary"]),
+                "BODY": esc(entry["body"]),
+                "STATUS_OPTIONS": status_options(requested),
+                "CLAIMS": render_propose_claims(entry.get("claims") or [], today),
+                "METER": meter(ratio),
+                "BANNER": banner,
+                "PREFILLED": "true",
+            },
+        )
+    if slug:
+        voice = "That slug is not on the tablet yet. Cut a new line."
+    else:
+        voice = "Write a line. I will not verify what has no source."
+    return render_template(
+        "propose.html",
+        {
+            "VOICE": esc(voice),
+            "TODAY": esc(today),
+            "SLUG": esc(slug),
+            "KIND": "note",
+            "TITLE": "",
+            "SUMMARY": "",
+            "BODY": "",
+            "STATUS_OPTIONS": status_options("verified"),
+            "CLAIMS": "",
+            "METER": meter(0),
+            "BANNER": "",
+            "PREFILLED": "false",
+        },
+    )
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -392,10 +527,7 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
         if path == "/propose":
-            self.send_page(
-                "propose.html",
-                {"VOICE": "Write a line. I will not verify what has no source.", "TODAY": esc(today_iso())},
-            )
+            self.send_html(render_propose(query_value(parsed, "slug")))
             return
         if path == "/archive":
             self.send_page(
@@ -466,25 +598,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "not found"})
             return
         self.send_html(
-            render_template(
-                "entry.html",
-                {
-                    "TITLE": "Not on the tablet",
-                    "KIND": "",
-                    "STATUS": "",
-                    "SUMMARY": "This path is not in the index.",
-                    "BODY": "",
-                    "CLAIMS": "<li>No claims.</li>",
-                    "UPDATED": "",
-                    "VOICE": "That page is not cut into the clay.",
-                    "RELATED": '<p class="empty">Nothing nearby.</p>',
-                    "BACKLINKS": '<p class="empty">No backlinks.</p>',
-                    "REVISIONS": "<li>No earlier cuts of this tablet.</li>",
-                    "METER": meter(0),
-                    "SLUG": "",
-                    "GRAPH": "[]",
-                },
-            ),
+            render_template("entry.html", missing_entry_map(summary="This path is not in the index.")),
             404,
         )
 

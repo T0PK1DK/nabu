@@ -12,17 +12,27 @@
   .hud {
     position: absolute; inset: 20px 20px auto 20px;
     display: flex; justify-content: space-between; align-items: flex-start;
-    pointer-events: none; z-index: 2;
+    pointer-events: none; z-index: 2; gap: 16px;
   }
   .hud > * { pointer-events: auto; }
   .spoken { max-width: 520px; font-size: 20px; margin: 16px 0 0; }
   #stage {
     display: block; width: 100vw; height: 100vh;
     cursor: grab; background: radial-gradient(circle at 50% 20%, #1b1510, #070605 70%);
+    touch-action: none;
   }
   #stage.drag { cursor: grabbing; }
   .legend {
     color: var(--muted); font-size: 13px; max-width: 280px; text-align: right; line-height: 1.45;
+  }
+  @media (max-width: 720px) {
+    .hud {
+      inset: 12px 12px auto 12px;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .spoken { font-size: 16px; max-width: none; margin: 10px 0 0; }
+    .legend { text-align: left; max-width: none; font-size: 12px; }
   }
 </style>
 </head>

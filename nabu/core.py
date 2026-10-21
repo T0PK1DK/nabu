@@ -556,13 +556,21 @@ def list_entries(
     return [dict(r) for r in rows]
 
 
-def _apply_filters(rows: list[dict], kind: str | None, status: str | None) -> list[dict]:
-    out = rows
-    if kind:
-        out = [r for r in out if r.get("kind") == kind]
-    if status:
-        out = [r for r in out if r.get("status") == status]
-    return out
+def best_snippet(*candidates: str, fallback: str = "") -> str:
+    """Prefer a snippet that actually highlighted a match.
+
+    FTS5 column numbers for entries_fts are slug=0, title=1, summary=2,
+    body=3, claims=4. Callers should pass snippets from those columns,
+    not from summary-as-body.
+    """
+    marked = [text for text in candidates if text and "\x1e" in text]
+    if marked:
+        return marked[0]
+    for text in candidates:
+        cleaned = (text or "").replace("…", "").strip()
+        if cleaned:
+            return text
+    return fallback
 
 
 def search(
@@ -584,28 +592,49 @@ def search(
         conn.close()
         return []
     weights = BM25_WEIGHTS
+    kind_arg = kind or ""
+    status_arg = status or ""
     try:
         rows = conn.execute(
             """
             SELECT
                 e.slug, e.title, e.kind, e.summary, e.status, e.updated_at,
                 bm25(entries_fts, ?, ?, ?, ?) AS rank,
-                snippet(entries_fts, 2, x'1e', x'1f', '…', 28) AS body_snip,
-                snippet(entries_fts, 3, x'1e', x'1f', '…', 22) AS claim_snip
+                snippet(entries_fts, 1, x'1e', x'1f', '…', 18) AS title_snip,
+                snippet(entries_fts, 3, x'1e', x'1f', '…', 28) AS body_snip,
+                snippet(entries_fts, 4, x'1e', x'1f', '…', 22) AS claim_snip
             FROM entries_fts
             JOIN entries e ON e.slug = entries_fts.slug
             WHERE entries_fts MATCH ?
+              AND (? = '' OR e.kind = ?)
+              AND (? = '' OR e.status = ?)
             ORDER BY rank
             LIMIT ?
             """,
-            (weights[0], weights[1], weights[2], weights[3], match, limit * 3),
+            (
+                weights[0],
+                weights[1],
+                weights[2],
+                weights[3],
+                match,
+                kind_arg,
+                kind_arg,
+                status_arg,
+                status_arg,
+                limit,
+            ),
         ).fetchall()
     except sqlite3.OperationalError:
         rows = []
     conn.close()
     hits = []
     for row in rows:
-        snippet = row["body_snip"] or row["claim_snip"] or row["summary"]
+        snippet = best_snippet(
+            row["claim_snip"],
+            row["body_snip"],
+            row["title_snip"],
+            fallback=row["summary"],
+        )
         hits.append(
             {
                 "slug": row["slug"],
@@ -618,7 +647,7 @@ def search(
                 "snippet": snippet,
             }
         )
-    return _apply_filters(hits, kind, status)[:limit]
+    return hits
 
 
 def _corpus(path: Path | None = None) -> list[dict]:

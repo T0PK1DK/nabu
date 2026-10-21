@@ -150,14 +150,38 @@
     ask(state.q, true);
   });
 
-  kind.addEventListener("change", function () { form.requestSubmit(); });
-  status.addEventListener("change", function () { form.requestSubmit(); });
+  function syncChips() {
+    document.querySelectorAll("a.chip").forEach(function (link) {
+      var facet = link.getAttribute("data-facet");
+      var value = link.getAttribute("data-value") || "";
+      var current = facet === "status" ? status.value : kind.value;
+      link.setAttribute("aria-current", value === current ? "true" : "false");
+    });
+  }
+
+  function onChipClick(event) {
+    var link = event.target.closest("a.chip");
+    if (!link) return;
+    event.preventDefault();
+    var facet = link.getAttribute("data-facet");
+    var value = link.getAttribute("data-value") || "";
+    if (facet === "status") status.value = value;
+    else if (facet === "kind") kind.value = value;
+    syncChips();
+    form.requestSubmit();
+  }
+
+  var kindChips = document.getElementById("kind-chips");
+  var statusChips = document.getElementById("status-chips");
+  if (kindChips) kindChips.addEventListener("click", onChipClick);
+  if (statusChips) statusChips.addEventListener("click", onChipClick);
 
   window.addEventListener("popstate", function () {
     var params = new URLSearchParams(location.search);
     input.value = params.get("q") || "";
     kind.value = params.get("kind") || "";
     status.value = params.get("status") || "";
+    syncChips();
     ask(input.value.trim(), false);
   });
 })();

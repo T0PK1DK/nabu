@@ -5,6 +5,12 @@
   var data;
   try { data = JSON.parse(raw.textContent || "{}"); } catch (err) { return; }
   var ctx = canvas.getContext("2d");
+  var ratio = window.devicePixelRatio || 1;
+  var cssWidth = canvas.clientWidth || 280;
+  var cssHeight = canvas.clientHeight || 180;
+  canvas.width = Math.floor(cssWidth * ratio);
+  canvas.height = Math.floor(cssHeight * ratio);
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   var nodes = [{ slug: data.center || "", title: "here", kind: "", status: "verified", x: 0, y: 0, z: 0 }];
   var related = (data.related || []).slice(0, 8);
   related.forEach(function (item, i) {
@@ -25,13 +31,13 @@
     var x = node.x * Math.cos(yaw) - node.z * Math.sin(yaw);
     var z = node.x * Math.sin(yaw) + node.z * Math.cos(yaw);
     var scale = 90 / (z + 3.4);
-    return { x: canvas.width / 2 + x * scale, y: canvas.height / 2 + node.y * scale, scale: scale };
+    return { x: cssWidth / 2 + x * scale, y: cssHeight / 2 + node.y * scale, scale: scale };
   }
 
   function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
     ctx.fillStyle = "#0c0a08";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
     nodes.slice(1).forEach(function (node) {
       var a = project(nodes[0]);
       var b = project(node);
@@ -61,11 +67,17 @@
 
   canvas.addEventListener("click", function (event) {
     var box = canvas.getBoundingClientRect();
-    var x = (event.clientX - box.left) * (canvas.width / box.width);
-    var y = (event.clientY - box.top) * (canvas.height / box.height);
+    var x = event.clientX - box.left;
+    var y = event.clientY - box.top;
     nodes.forEach(function (node) {
       var hit = node._hit;
-      if (hit && x >= hit.x && x <= hit.x + hit.w && y >= hit.y && y <= hit.y + hit.h && node.slug) {
+      if (
+        hit &&
+        x >= hit.x && x <= hit.x + hit.w &&
+        y >= hit.y && y <= hit.y + hit.h &&
+        node.slug &&
+        node.slug !== data.center
+      ) {
         location.href = "/e/" + encodeURIComponent(node.slug);
       }
     });

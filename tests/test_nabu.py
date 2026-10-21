@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tests for Nabu v0.3 — judge, search, graph, and the HTTP doors."""
+"""Tests for Nabu v0.3.1 — judge, search, graph, propose UX, and the HTTP doors."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ from http.client import HTTPConnection
 from pathlib import Path
 
 from nabu.core import (
+    best_snippet,
     completeness,
     extract_wikilinks,
     fts_query,
@@ -129,6 +130,9 @@ class UrlAndDateTests(unittest.TestCase):
         url = wayback_url("https://example.com/page", "2026-10-10")
         self.assertEqual(url, "https://web.archive.org/web/20261010/https://example.com/page")
         self.assertIsNone(wayback_url("not-a-url", "2026-10-10"))
+        self.assertIsNone(wayback_url("", "2026-10-10"))
+        self.assertIsNone(wayback_url("https://example.com/page", ""))
+        self.assertIsNone(wayback_url("javascript:alert(1)", "2026-10-10"))
 
 
 class QueryTests(unittest.TestCase):
@@ -153,6 +157,17 @@ class QueryTests(unittest.TestCase):
             ["nabu-god", "tablet-of-destinies"],
         )
 
+    def test_best_snippet_prefers_highlighted_match(self):
+        chosen = best_snippet(
+            "plain summary",
+            "a \x1eclaim\x1f hit",
+            "body without marks",
+            fallback="fallback",
+        )
+        self.assertIn("claim", chosen)
+        self.assertIn("\x1e", chosen)
+        self.assertEqual(best_snippet("", "…", fallback="summary"), "summary")
+
 
 class StoreTests(TmpTablet):
     def test_seed_has_verified_and_draft(self):
@@ -170,6 +185,10 @@ class StoreTests(TmpTablet):
         self.assertIn("nabu-god", slugs)
         claim_hits = search("Ezida")
         self.assertTrue(any(h["slug"] == "nabu-god" for h in claim_hits))
+        self.assertTrue(
+            any("Ezida" in (h.get("snippet") or "") for h in claim_hits),
+            claim_hits,
+        )
 
     def test_search_filters_and_snippets(self):
         tools = search("search", kind="tool")
@@ -263,6 +282,13 @@ class StoreTests(TmpTablet):
         self.assertEqual(score["complete"], 1)
         self.assertEqual(score["claims"], 2)
 
+    def test_entry_has_no_wayback_for_unsourced_claim(self):
+        gap = get_entry("citation-gap")
+        self.assertTrue(gap["claims"])
+        self.assertFalse(gap["claims"][0]["url"])
+        self.assertIsNone(gap["claims"][0]["archive"])
+        self.assertFalse(gap["claims"][0]["sourced"])
+
 
 class HttpTests(TmpTablet):
     def setUp(self):
@@ -311,6 +337,33 @@ class HttpTests(TmpTablet):
             code, html = self._html(path)
             self.assertIn(code, (200, 404), path)
             self.assertIn("Nabu", html)
+        code, home = self._html("/")
+        self.assertEqual(code, 200)
+        self.assertIn('data-facet="kind"', home)
+        self.assertIn('data-facet="status"', home)
+        self.assertIn("/?kind=tool", home)
+        self.assertNotIn("/?status=tool", home)
+
+    def test_entry_offers_revise_and_grouped_claims(self):
+        code, html = self._html("/e/nabu")
+        self.assertEqual(code, 200)
+        self.assertIn("/propose?slug=nabu", html)
+        self.assertIn("Revise this tablet", html)
+        self.assertIn("oracc.museum.upenn.edu", html)
+        missing_code, missing = self._html("/e/missing")
+        self.assertEqual(missing_code, 404)
+        self.assertNotIn("Revise this tablet", missing)
+
+    def test_propose_prefills_existing_slug(self):
+        code, html = self._html("/propose?slug=nabu")
+        self.assertEqual(code, 200)
+        self.assertIn('value="nabu"', html)
+        self.assertIn('value="Nabu"', html)
+        self.assertIn("https://oracc.museum.upenn.edu", html)
+        self.assertIn("Editing", html)
+        missing_code, missing = self._html("/propose?slug=not-written-yet")
+        self.assertEqual(missing_code, 200)
+        self.assertIn("not on the tablet yet", missing)
 
     def test_html_404_for_unknown_page(self):
         code, html = self._html("/no-such-door")
