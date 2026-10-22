@@ -69,7 +69,7 @@ class SearchFoldedFromPR3(unittest.TestCase):
         code, body = app.propose(
             {
                 "slug": "high-conf-note",
-                "title": "Nabu",
+                "title": "High confidence note",
                 "kind": "note",
                 "summary": "A sourced line.",
                 "body": "Saved from a high-confidence answer.",

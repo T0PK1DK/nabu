@@ -265,11 +265,12 @@
   .masonry { column-count: 2; column-gap: 10px; }
   @media (min-width: 720px) { .masonry { column-count: 3; } }
   .icard {
-    display: block; break-inside: avoid; margin: 0 0 10px; border-radius: 12px;
+    display: inline-block; width: 100%; break-inside: avoid; margin: 0 0 10px; border-radius: 12px;
     overflow: hidden; background: var(--card); border: 1px solid var(--line);
     text-decoration: none; animation: summon .7s cubic-bezier(.2,.9,.25,1.12) both;
+    vertical-align: top;
   }
-  .icard img { width: 100%; height: auto; display: block; vertical-align: middle; background: var(--soft); }
+  .icard img { width: 100%; height: auto; min-height: 110px; display: block; background: var(--soft); object-fit: cover; }
   .icard span { display: block; padding: 8px 10px 9px; font-size: 12px; color: var(--muted); line-height: 1.35; }
   .icard:hover { border-color: var(--line-2); }
   .icard:focus-visible { outline: 2px solid var(--lapis); outline-offset: 2px; }
@@ -1121,6 +1122,7 @@
         img.alt = title || "Wikimedia Commons image";
         img.loading = "lazy";
         img.decoding = "async";
+        img.referrerPolicy = "no-referrer";
         a.appendChild(img);
         a.appendChild(el("span", null, title));
         box.appendChild(a);
