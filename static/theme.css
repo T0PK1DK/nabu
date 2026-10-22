@@ -204,15 +204,26 @@ mark {
 }
 @media (max-width: 430px) {
   body { overflow-x: clip; }
-  .brand { letter-spacing: .16em; font-size: 11px; gap: 8px; }
+  .nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px 0;
+  }
+  .brand { letter-spacing: .16em; font-size: 11px; gap: 8px; align-self: flex-start; }
   .brand .mark { width: 18px; height: 15px; }
-  .doors { justify-content: stretch; }
+  .doors {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 0;
+  }
   .doors a {
-    flex: 1 1 0;
     justify-content: center;
-    min-width: 0;
-    padding: 0 2px;
-    letter-spacing: .05em;
+    padding: 0 1px;
+    letter-spacing: .04em;
+    overflow: visible;
+    white-space: nowrap;
   }
   .chip { min-height: 44px; }
   .page { padding: 14px 12px calc(72px + env(safe-area-inset-bottom)); }
