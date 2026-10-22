@@ -103,6 +103,13 @@
   .focus button[aria-pressed="true"] { background: var(--lapis-soft); color: var(--lapis); border-color: color-mix(in srgb, var(--lapis) 30%, transparent); }
   .send { margin-left: auto; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 0; background: var(--lapis); color: var(--on-lapis); cursor: pointer; }
   .send:disabled { opacity: .45; cursor: default; }
+  .mic {
+    width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%;
+    border: 0; background: none; color: var(--muted); cursor: pointer;
+  }
+  .mic:hover { color: var(--ink); background: var(--soft); }
+  .mic[aria-pressed="true"] { color: var(--lapis); background: var(--lapis-soft); }
+  .mic[hidden] { display: none !important; }
   .suggest { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; padding: 6px; border-radius: 14px; background: var(--card); box-shadow: 0 0 0 1px var(--line-2), 0 18px 40px rgba(0,0,0,.18); }
   .suggest button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; color: var(--ink-2); }
   .suggest button[aria-selected="true"], .suggest button:hover { background: var(--soft); color: var(--ink); }
@@ -343,7 +350,11 @@
   .sage .pupil-g { transition: transform .25s ease-out; }
   .sage .stop-a { stop-color: var(--orb-a); } .sage .stop-b { stop-color: var(--lapis); } .sage .stop-c { stop-color: var(--orb-c); }
   .sage[data-state="listening"] .ring { animation-duration: 14s; }
-  .sage[data-state="listening"] .halo { opacity: .2; }
+  .sage[data-state="listening"] .halo { opacity: .34; }
+  .sage[data-state="listening"] .orb-g { filter: drop-shadow(0 0 18px var(--lapis)); }
+  .sage[data-state="listening"] .eye { filter: drop-shadow(0 0 10px var(--gold)); }
+  body.listening .sage .halo { opacity: .34; }
+  body.listening .sage .orb-g { filter: drop-shadow(0 0 18px var(--lapis)); }
   .sage[data-state="thinking"] .ring { animation-duration: 4s; }
   .sage[data-state="thinking"] .ring2 { animation-duration: 3s; }
   .sage[data-state="thinking"] .halo { animation-duration: 1.1s; opacity: .26; }
@@ -422,6 +433,9 @@
           <textarea id="home-q" rows="1" placeholder="Ask anything…" aria-label="Ask anything" aria-controls="home-suggest"></textarea>
           <div class="ask-tools">
             <div class="focus" id="home-focus"></div>
+            <button class="mic" id="home-mic" type="button" aria-label="Speak your question" aria-pressed="false" hidden>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3"/></svg>
+            </button>
             <button class="send" type="submit" aria-label="Search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
           </div>
           <div class="suggest" id="home-suggest" role="listbox" hidden></div>
@@ -468,6 +482,9 @@
     <textarea id="dock-q" rows="1" placeholder="Ask a follow-up…" aria-label="Ask a follow-up"></textarea>
     <div class="ask-tools">
       <div class="focus" id="dock-focus"></div>
+      <button class="mic" id="dock-mic" type="button" aria-label="Speak a follow-up" aria-pressed="false" hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3a3 3 0 0 1 3 3v6a3 3 0 0 1-6 0V6a3 3 0 0 1 3-3z"/><path d="M19 10v1a7 7 0 0 1-14 0v-1M12 18v3"/></svg>
+      </button>
       <button class="send" type="submit" aria-label="Ask"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
     </div>
   </form>
@@ -1165,7 +1182,54 @@
     setSage($("home-sage"), "idle"); document.body.classList.add("at-home"); $("home-q").value = ""; growHome(); window.scrollTo(0, 0); $("home-q").focus();
   }
 
+  var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var listening = null;
+  function stopListen() {
+    if (listening) { try { listening.stop(); } catch (e) { /* already ended */ } listening = null; }
+    document.body.classList.remove("listening");
+    ["home-mic", "dock-mic"].forEach(function (id) { if ($(id)) $(id).setAttribute("aria-pressed", "false"); });
+    setSage($("home-sage"), $("home-q").value.trim() ? "listening" : "idle");
+    turns.forEach(function (t) { if (t.sage) setSage(t.sage, "idle"); });
+  }
+  function startListen(input, submit) {
+    if (!SpeechRec) return;
+    if (listening) { stopListen(); return; }
+    var rec = new SpeechRec();
+    rec.lang = document.documentElement.lang || "en";
+    rec.interimResults = true;
+    rec.continuous = false;
+    listening = rec;
+    document.body.classList.add("listening");
+    setSage($("home-sage"), "listening");
+    turns.forEach(function (t) { if (t.sage) setSage(t.sage, "listening"); });
+    $("home-say").textContent = "I'm listening…";
+    rec.onresult = function (ev) {
+      var said = "";
+      for (var i = ev.resultIndex; i < ev.results.length; i++) said += ev.results[i][0].transcript;
+      input.value = said.trim();
+      if (input === $("home-q")) growHome();
+      if (input === $("dock-q")) growDock();
+    };
+    rec.onerror = function () { stopListen(); };
+    rec.onend = function () {
+      var q = input.value.trim();
+      stopListen();
+      if (q) submit(q);
+    };
+    try { rec.start(); } catch (e) { stopListen(); }
+  }
+  function wireMic(btn, input, submit) {
+    if (!SpeechRec || !btn) return;
+    btn.hidden = false;
+    btn.addEventListener("click", function () {
+      btn.setAttribute("aria-pressed", String(btn.getAttribute("aria-pressed") !== "true"));
+      startListen(input, submit);
+    });
+  }
+
   var growHome = wireBox($("home-q"), $("home-form")), growDock = wireBox($("dock-q"), $("dock-form"));
+  wireMic($("home-mic"), $("home-q"), function (q) { go(q); });
+  wireMic($("dock-mic"), $("dock-q"), function (q) { $("dock-q").value = ""; growDock(); follow(q); });
   var closers = [attachSuggest($("home-q"), $("home-suggest"), $("home-form"), function (q) { go(q); })];
   $("dock-form")._sugIdx = -1;
   $("home-form").addEventListener("submit", function (ev) { ev.preventDefault(); go($("home-q").value); });
@@ -1173,7 +1237,7 @@
   ["side-logo", "top-logo", "new", "top-new", "nav-home"].forEach(function (id) { $(id).addEventListener("click", home); });
   $("nav-tablet").addEventListener("click", function () { openRecord(SEED.entries.filter(function (e) { return e.slug === "nabu"; })[0] || SEED.entries[0]); });
   document.addEventListener("keydown", function (ev) {
-    if (ev.key === "Escape") { $("record").hidden = true; return; }
+    if (ev.key === "Escape") { stopListen(); $("record").hidden = true; return; }
     if (ev.key === "/" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { ev.preventDefault(); ($("home").hidden ? $("dock-q") : $("home-q")).focus(); }
   });
 
