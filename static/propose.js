@@ -232,17 +232,26 @@
   });
   form.addEventListener("input", scheduleJudge);
   form.addEventListener("change", scheduleJudge);
+  var cutting = false;
   form.addEventListener("submit", function (event) {
     event.preventDefault();
+    if (cutting) return;
+    cutting = true;
+    if (cut) cut.disabled = true;
     send("/api/propose").then(function (result) {
       var data = result.data || {};
       reason.textContent = data.reason || data.error || "No reply.";
       if (data.completeness) paintMeter(data.completeness.ratio);
       if (result.ok && data.slug) {
         voice.textContent = "Cut. Status is " + data.status + ".";
-        setTimeout(function () { location.href = "/e/" + encodeURIComponent(data.slug); }, 700);
+        setTimeout(function () { location.href = "/e/" + encodeURIComponent(data.slug); }, 420);
+        return;
       }
+      cutting = false;
+      if (cut) cut.disabled = false;
     }).catch(function () {
+      cutting = false;
+      if (cut) cut.disabled = false;
       reason.textContent = "The cut could not be written.";
     });
   });

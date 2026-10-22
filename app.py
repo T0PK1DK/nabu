@@ -56,7 +56,9 @@ def render_template(name: str, mapping: dict) -> bytes:
     return pattern.sub(lambda match: mapping[match.group(1)], text).encode("utf-8")
 
 
-def voice_for(q: str, count: int) -> str:
+def voice_for(q: str, count: int, kind: str = "", status: str = "") -> str:
+    if not q and count == 0 and (kind or status):
+        return "Those filters left the tablet blank."
     if not q:
         return "The tablet is open. Ask, and I will find the line."
     if count == 0:
@@ -179,7 +181,7 @@ def render_home(q: str, kind: str = "", status: str = "") -> bytes:
             "RESULTS": render_hits(hits, q, kind, status),
             "LABEL": esc(label),
             "COUNT": f"{len(hits):02d}",
-            "VOICE": esc(voice_for(q, len(hits))),
+            "VOICE": esc(voice_for(q, len(hits), kind, status)),
             "KIND_CHIPS": render_chips("kinds", kind, kinds, q=q, kind=kind, status=status),
             "STATUS_CHIPS": render_chips(
                 "statuses", status, ["draft", "verified", "disputed"], q=q, kind=kind, status=status
@@ -201,7 +203,7 @@ def render_wiki_body(body: str) -> str:
     def replace(match: re.Match) -> str:
         slug = match.group(1)
         label = match.group(2) or slug.replace("-", " ")
-        return f'<a class="wiki" href="/e/{slug}">{label}</a>'
+        return f'<a class="wiki" href="/e/{esc(slug)}">{label}</a>'
 
     return re.sub(
         r"\[\[([a-z0-9]+(?:-[a-z0-9]+)*)(?:\|([^\]]+))?\]\]",

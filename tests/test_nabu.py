@@ -242,6 +242,15 @@ class StoreTests(TmpTablet):
         listed = search("")
         self.assertGreaterEqual(len(listed), 8)
 
+    def test_search_kind_is_forgiving_about_case(self):
+        hits = search("nabu", kind="Deity")
+        self.assertTrue(hits)
+        self.assertTrue(all(h["kind"] == "deity" for h in hits))
+
+    def test_search_empty_filters_can_miss(self):
+        hits = search("", kind="note", status="verified")
+        self.assertEqual(hits, [])
+
     def test_related_prefers_wiki_neighbors(self):
         related = related_entries("nabu")
         slugs = [r["slug"] for r in related]
@@ -407,6 +416,11 @@ class HttpTests(TmpTablet):
         self.assertEqual(code, 200)
         self.assertIn("/e/nabu-god", filtered)
         self.assertIn('aria-current="true"', filtered)
+        code, blank = self._html("/?kind=note&status=verified")
+        self.assertEqual(code, 200)
+        self.assertIn("Those filters left the tablet blank", blank)
+        self.assertIn("Nothing on the tablet", blank)
+        self.assertIn("Clear filters", blank)
 
     def test_entry_offers_revise_and_grouped_claims(self):
         code, html = self._html("/e/nabu")

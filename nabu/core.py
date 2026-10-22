@@ -617,6 +617,10 @@ def search(
     path: Path | None = None,
 ) -> list[dict]:
     q = (q or "").strip()
+    if kind:
+        kind = normalize_kind(kind)
+    if status:
+        status = str(status).strip().lower()
     limit = max(1, min(int(limit or 20), 100))
     conn = connect(path)
     if not q:

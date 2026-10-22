@@ -16,6 +16,7 @@
 
   function answer(n, q) {
     var words = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+    if (!q && !n && (kind.value || status.value)) return "Those filters left the tablet blank.";
     if (!q) return "The tablet is open. Ask, and I will find the line.";
     if (!n) return "I turned the tablet. That is not written.";
     if (n === 1) return "One line was already there.";
@@ -227,6 +228,10 @@
   var statusChips = document.getElementById("status-chips");
   if (kindChips) kindChips.addEventListener("click", onChipClick);
   if (statusChips) statusChips.addEventListener("click", onChipClick);
+  if (window.matchMedia("(max-width: 430px)").matches) {
+    input.removeAttribute("autofocus");
+    input.blur();
+  }
 
   window.addEventListener("popstate", function () {
     var params = new URLSearchParams(location.search);
