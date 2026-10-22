@@ -83,6 +83,25 @@
     .facet-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
     .chip { flex: none; }
   }
+  @media (max-width: 430px) {
+    .room { padding: 10px 10px calc(36px + env(safe-area-inset-bottom)); }
+    .slab { padding: 12px 12px 6px; }
+    .presence { gap: 10px; margin: 10px 0 12px; }
+    .presence img { width: 52px; height: 70px; }
+    .voice { font-size: 16px; }
+    input[type="search"] { font-size: 18px; }
+    h2 { font-size: 18px; }
+    .line { flex-direction: column; gap: 6px; align-items: flex-start; }
+    .num { padding-top: 2px; }
+    .facet-row {
+      margin: 0 -12px;
+      padding: 0 12px 8px;
+      padding-inline-end: 36px;
+      scrollbar-width: none;
+    }
+    .facet-row::-webkit-scrollbar { display: none; }
+    a.hit { grid-template-columns: 28px 1fr; gap: 6px 10px; padding: 14px 0 13px; }
+  }
 </style>
 </head>
 <body>

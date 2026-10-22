@@ -46,11 +46,26 @@
   button.ghost { background: transparent; color: var(--bronze-2); box-shadow: 0 0 0 1px rgba(201,133,74,.4); }
   .reason { min-height: 3em; color: var(--muted); }
   @media (max-width: 640px) {
-    .wrap { padding: 18px 16px calc(80px + env(safe-area-inset-bottom)); }
     .spoken { font-size: 18px; }
     .row { grid-template-columns: 1fr; }
     .actions { flex-direction: column; }
     .actions button { width: 100%; }
+  }
+  @media (max-width: 430px) {
+    .spoken { font-size: 16px; }
+    .live-meter {
+      top: env(safe-area-inset-top);
+      margin: 0 -12px;
+      padding: 10px 12px 12px;
+    }
+    .actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 2;
+      margin: 0 -12px -12px;
+      padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+      background: linear-gradient(0deg, var(--room) 70%, transparent);
+    }
   }
 </style>
 </head>

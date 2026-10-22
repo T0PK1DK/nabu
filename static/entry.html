@@ -59,6 +59,14 @@
     h1 { font-size: clamp(30px, 10vw, 44px); }
     .spoken { font-size: 16px; }
   }
+  @media (max-width: 430px) {
+    .wrap { padding: 14px 12px calc(56px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 28px; }
+    .summary { font-size: 16px; }
+    .body { font-size: 16px; }
+    .tools { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .src, .archive, .body { overflow-wrap: anywhere; }
+  }
 </style>
 </head>
 <body>

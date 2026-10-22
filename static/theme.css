@@ -200,6 +200,24 @@ mark {
 @media (max-width: 640px) {
   .doors { width: 100%; justify-content: space-between; gap: 0; }
   .doors a { padding: 0 4px; font-size: 10px; letter-spacing: .1em; }
+  .page { padding: 18px 16px calc(72px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 430px) {
+  body { overflow-x: clip; }
+  .brand { letter-spacing: .16em; font-size: 11px; gap: 8px; }
+  .brand .mark { width: 18px; height: 15px; }
+  .doors { justify-content: stretch; }
+  .doors a {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    padding: 0 2px;
+    letter-spacing: .05em;
+  }
+  .chip { min-height: 44px; }
+  .page { padding: 14px 12px calc(72px + env(safe-area-inset-bottom)); }
+  .inscribe { margin-top: 8px; }
+  .status { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

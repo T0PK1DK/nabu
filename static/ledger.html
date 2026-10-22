@@ -18,9 +18,12 @@
   ul { list-style: none; padding: 0; }
   li { border-top: 1px solid #3a2e24; padding: 8px 0; display: flex; justify-content: space-between; }
   @media (max-width: 640px) {
-    .wrap { padding: 18px 16px calc(80px + env(safe-area-inset-bottom)); }
     .spoken { font-size: 18px; }
     .counts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 430px) {
+    .spoken { font-size: 16px; }
+    .counts b { font-size: 24px; }
   }
 </style>
 </head>
