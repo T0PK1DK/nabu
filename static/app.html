@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Nabu: a cited answer engine and encyclopedia.">
+<meta name="theme-color" content="#fbfaf6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#171818" media="(prefers-color-scheme: dark)">
 </head>
 <body>
 <title>Nabu</title>
@@ -21,9 +23,9 @@
     --line: #e7e3d8;
     --line-2: #d9d4c6;
     --ink: #1c2226;
-    --ink-2: #3a4247;
-    --muted: #6d7378;
-    --faint: #9a9e9f;
+    --ink-2: #2f373c;
+    --muted: #4d555b;
+    --faint: #5c6368;
     --lapis: #2b5aa3;
     --lapis-soft: rgba(43, 90, 163, .1);
     --on-lapis: #ffffff;
@@ -59,9 +61,16 @@
   [hidden] { display: none !important; }
   html, body { background: var(--bg); color: var(--ink); }
   body { margin: 0; font: 15px/1.5 var(--ui); -webkit-font-smoothing: antialiased; }
-  button { font: inherit; color: inherit; }
+  button { font: inherit; color: inherit; touch-action: manipulation; }
   a { color: inherit; }
-  button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--lapis); outline-offset: 2px; }
+  button:focus-visible, a:focus-visible, textarea:focus-visible, .turn:focus-visible { outline: 2px solid var(--lapis); outline-offset: 2px; }
+  .skip {
+    position: absolute; left: 10px; top: 10px; z-index: 50; padding: 8px 12px;
+    border-radius: 8px; background: var(--lapis); color: var(--on-lapis); text-decoration: none;
+    transform: translateY(-160%);
+  }
+  .skip:focus { transform: none; }
+  .turn.current { box-shadow: inset 3px 0 0 var(--lapis); }
   svg { flex: none; }
 
   .shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr); }
@@ -386,10 +395,11 @@
   }
 </style>
 
+<a class="skip" href="#home-q">Skip to search</a>
 <div class="library" id="library" aria-hidden="true"></div>
 <div class="shell">
   <aside class="side">
-    <button class="logo" id="side-logo" type="button"><span class="sigil">𒀭</span><b>nabu</b></button>
+    <button class="logo" id="side-logo" type="button" aria-label="Nabu home"><span class="sigil" aria-hidden="true">𒀭</span><b>nabu</b></button>
     <button class="new" id="new" type="button">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New search<kbd>/</kbd>
     </button>
@@ -402,12 +412,12 @@
     </button>
     <h3>Library</h3>
     <div class="recent" id="recent"></div>
-    <p class="side-foot">Answers first, sources beside them. Nothing sponsored, nothing tracked.</p>
+    <p class="side-foot">Answers first, sources beside them. <kbd>/</kbd> search · <kbd>j</kbd> <kbd>k</kbd> answers · <kbd>esc</kbd> home. Nothing sponsored, nothing tracked.</p>
   </aside>
 
   <div class="main">
     <header class="mtop">
-      <button class="logo" id="top-logo" type="button"><span class="sigil">𒀭</span><b>nabu</b></button>
+      <button class="logo" id="top-logo" type="button" aria-label="Nabu home"><span class="sigil" aria-hidden="true">𒀭</span><b>nabu</b></button>
       <span></span>
       <button class="icon-btn" id="top-new" type="button" hidden>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New
@@ -435,7 +445,7 @@
     </g>
   </g>
 </svg></div>
-        <p class="sage-say" id="home-say">I am Nabu, keeper of the tablet. Ask, and the books will come to you.</p>
+        <p class="sage-say" id="home-say" aria-live="polite">I am Nabu, keeper of the tablet. Ask, and the books will come to you.</p>
         <div class="wordmark"><span class="sigil">𒀭</span><h1>nabu</h1></div>
         <form class="ask" id="home-form" autocomplete="off">
           <textarea id="home-q" rows="1" placeholder="Ask anything…" aria-label="Ask anything" aria-controls="home-suggest"></textarea>
@@ -816,6 +826,7 @@
   function Turn(q, isMain, fast) {
     this.q = q; this.main = isMain; this.fast = fast; this.tk = token; this.sources = []; this.parts = 0; this.intent = ""; this.list = null; this.listTag = ""; this.table = null; this.factTable = null; this.asks = 0; this.nexts = 0;
     var root = this.root = el("article", "turn");
+    root.tabIndex = -1;
     root.appendChild(el("h1", "query", q));
     this.voice = el("div", "voice"); this.sage = makeSage(46); this.say = el("p"); this.voice.appendChild(this.sage); this.voice.appendChild(this.say); root.appendChild(this.voice);
     if (fast) { setSage(this.sage, "idle"); this.speak("From your library. Here is what I wrote for you before."); } else this.speak("Let me read your question…");
@@ -1129,6 +1140,17 @@
     window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
   }
   document.querySelectorAll(".tab").forEach(function (t) { t.addEventListener("click", function () { showTab(t.dataset.tab); }); });
+  document.querySelector(".tabs").addEventListener("keydown", function (ev) {
+    var tabs = [].slice.call(document.querySelectorAll(".tab"));
+    var i = tabs.findIndex(function (t) { return t.getAttribute("aria-selected") === "true"; });
+    if (ev.key !== "ArrowRight" && ev.key !== "ArrowLeft" && ev.key !== "Home" && ev.key !== "End") return;
+    ev.preventDefault();
+    if (ev.key === "Home") i = 0;
+    else if (ev.key === "End") i = tabs.length - 1;
+    else i = (i + (ev.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+    showTab(tabs[i].dataset.tab);
+    tabs[i].focus();
+  });
 
   var PROMPT = [
     "You are Nabu, a search engine and encyclopedia that answers like the best of Perplexity and Wikipedia together. Someone asked:",
@@ -1188,8 +1210,14 @@
     live(q); imagesFor = ""; $("masonry").replaceChildren(); $("img-count").textContent = ""; window.scrollTo(0, 0);
   }
 
-  function go(q, rewrite) {
+  function sharePath(q) {
+    return q ? "?q=" + encodeURIComponent(q) : location.pathname;
+  }
+  function go(q, rewrite, fromHist) {
     q = (q || "").trim(); if (!q) return;
+    if (!fromHist) {
+      try { history.pushState({ q: q }, "", sharePath(q)); } catch (e) { /* file: */ }
+    }
     openThread(q);
     current = { q: q, title: "", raw: "", turns: [], follow: [], at: Date.now() };
     var turn = new Turn(q, true, false); turns.push(turn); $("pane-answer").appendChild(turn.root);
@@ -1234,11 +1262,14 @@
     paintSourceTab();
   }
 
-  function home() {
+  function home(fromHist) {
     token++; if (ctl) ctl.abort(); stopListen();
     $("tview").hidden = true; $("dock").hidden = true; $("home").hidden = false; $("top-new").hidden = true;
     $("nav-home").setAttribute("aria-current", "page"); $("nav-tablet").removeAttribute("aria-current");
     setSage($("home-sage"), "idle"); document.body.classList.add("at-home"); $("home-q").value = ""; growHome(); window.scrollTo(0, 0); $("home-q").focus();
+    if (fromHist !== true) {
+      try { if (location.search) history.pushState({ q: "" }, "", sharePath("")); } catch (e) { /* file: */ }
+    }
   }
 
   var SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1295,14 +1326,40 @@
   $("dock-form").addEventListener("submit", function (ev) { ev.preventDefault(); var q = $("dock-q").value; $("dock-q").value = ""; growDock(); follow(q); });
   ["side-logo", "top-logo", "new", "top-new", "nav-home"].forEach(function (id) { $(id).addEventListener("click", home); });
   $("nav-tablet").addEventListener("click", function () { openRecord(SEED.entries.filter(function (e) { return e.slug === "nabu"; })[0] || SEED.entries[0]); });
+  var turnIdx = 0;
+  function moveTurn(dir) {
+    var nodes = document.querySelectorAll(".turn");
+    if (!nodes.length) return;
+    turnIdx = Math.max(0, Math.min(nodes.length - 1, turnIdx + dir));
+    nodes.forEach(function (n, i) { n.classList.toggle("current", i === turnIdx); });
+    nodes[turnIdx].focus({ preventScroll: true });
+    nodes[turnIdx].scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
+  }
   document.addEventListener("keydown", function (ev) {
-    if (ev.key === "Escape") { stopListen(); $("record").hidden = true; return; }
-    if (ev.key === "/" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { ev.preventDefault(); ($("home").hidden ? $("dock-q") : $("home-q")).focus(); }
+    if (ev.isComposing) return;
+    var typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
+    if (ev.key === "Escape") {
+      var busy = listening || !$("record").hidden;
+      stopListen();
+      $("record").hidden = true;
+      closers.forEach(function (c) { c(); });
+      if (!busy && !$("tview").hidden) home();
+      return;
+    }
+    if (ev.key === "/" && !typing) { ev.preventDefault(); ($("home").hidden ? $("dock-q") : $("home-q")).focus(); return; }
+    if ((ev.key === "j" || ev.key === "k") && !typing && !$("tview").hidden) { ev.preventDefault(); moveTurn(ev.key === "j" ? 1 : -1); }
+  });
+  window.addEventListener("popstate", function () {
+    var q = new URLSearchParams(location.search).get("q");
+    if (q) go(q, false, true);
+    else home(true);
   });
 
   if (LIVE) $("how").innerHTML = "<b>How Nabu answers.</b> Each answer is written by an open model on Cloudflare Workers AI from live sources fetched for your question: Wikipedia, and Brave Search when it is configured. Sources and web results are those real pages, and citations point to them. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged. No ads, no sponsored results, no tracking.";
   document.body.classList.add("at-home");
   renderFocus($("home-focus")); renderFocus($("dock-focus")); renderCards(); renderLibrary();
+  var boot = new URLSearchParams(location.search).get("q");
+  if (boot) go(boot, false, true);
 })();
 </script>
 
