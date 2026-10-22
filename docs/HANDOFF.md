@@ -48,7 +48,7 @@ Read `README.md` and `docs/RESEARCH.md` before editing.
 
 ## Likely next work (pick one lane, finish it, add tests)
 
-1. **Search quality.** Tune `BM25_WEIGHTS` and `fts_query` against the seed tablet. Add phrase-boost tests. Consider FTS5 `NEAR` for two-term queries. Keep snippets XSS-safe (`\x1e`/`\x1f` markers, then escape). Snippet columns are already title/body/claims.
+1. **Search quality.** Every bare token is prefixed. An empty AND query retries as OR. Tune `BM25_WEIGHTS` and `fts_query` against the seed tablet. Add phrase-boost tests. Consider FTS5 `NEAR` for two-term queries. Keep snippets XSS-safe (`\x1e`/`\x1f` markers, then escape). Snippet columns are already title/body/claims.
 2. **Citation hygiene.** Optional “archive exists?” is out of scope (no network). You may add a claim `note` field. Host grouping and “no Wayback on unsourced claims” are done.
 3. **Graph.** Persist computed related edges if the tablet grows; today they are computed per request. Keep the 3D renderer dependency-free.
 4. **Propose UX.** Done in 0.3.1: `/propose?slug=`, load button, live meter via `/api/judge`, revise link on the entry. Further work could be a side-by-side revision diff. Still no accounts.

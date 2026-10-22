@@ -157,6 +157,12 @@ class QueryTests(unittest.TestCase):
             ["nabu-god", "tablet-of-destinies"],
         )
 
+    def test_fts_query_prefixes_every_bare_token(self):
+        q = fts_query("tab dest")
+        self.assertIn("tab*", q)
+        self.assertIn("dest*", q)
+        self.assertTrue(q.endswith("dest*"))
+
     def test_best_snippet_prefers_highlighted_match(self):
         chosen = best_snippet(
             "plain summary",
@@ -196,7 +202,45 @@ class StoreTests(TmpTablet):
         self.assertTrue(all(h["kind"] == "tool" for h in tools))
         self.assertTrue(any(h.get("snippet") for h in tools))
         drafts = search("", status="draft")
+        self.assertTrue(drafts)
         self.assertTrue(all(h["status"] == "draft" for h in drafts))
+
+    def test_search_partial_first_token(self):
+        hits = search("tab dest")
+        slugs = [h["slug"] for h in hits]
+        self.assertIn("tablet-of-destinies", slugs)
+        short = search("nab")
+        short_slugs = [h["slug"] for h in short]
+        self.assertIn("nabu", short_slugs)
+        self.assertIn("nabu-god", short_slugs)
+
+    def test_search_unknown_stem_is_empty(self):
+        self.assertEqual(search("xyzzy-not-written"), [])
+
+    def test_search_or_fallback_when_and_misses(self):
+        hits = search("nabu xyzzyfoobar")
+        self.assertTrue(any(h["slug"] == "nabu" for h in hits), hits)
+
+    def test_search_kind_filter_excludes_other_kinds(self):
+        hits = search("nabu", kind="deity")
+        self.assertTrue(hits)
+        self.assertTrue(all(h["kind"] == "deity" for h in hits))
+        slugs = [h["slug"] for h in hits]
+        self.assertIn("nabu-god", slugs)
+        self.assertNotIn("nabu", slugs)
+
+    def test_search_kind_and_status_together(self):
+        hits = search("tablet", kind="object", status="verified")
+        self.assertTrue(hits)
+        self.assertTrue(all(h["kind"] == "object" and h["status"] == "verified" for h in hits))
+        self.assertTrue(any(h["slug"] == "tablet-of-destinies" for h in hits))
+
+    def test_search_empty_query_kind_filter(self):
+        notes = search("", kind="note")
+        self.assertTrue(notes)
+        self.assertTrue(all(h["kind"] == "note" for h in notes))
+        listed = search("")
+        self.assertGreaterEqual(len(listed), 8)
 
     def test_related_prefers_wiki_neighbors(self):
         related = related_entries("nabu")
@@ -331,6 +375,16 @@ class HttpTests(TmpTablet):
         code, body = self._json("/api/search?q=nabu")
         self.assertEqual(code, 200)
         self.assertTrue(body["hits"])
+        code, filtered = self._json("/api/search?q=nabu&kind=deity")
+        self.assertEqual(code, 200)
+        slugs = [h["slug"] for h in filtered["hits"]]
+        self.assertTrue(slugs)
+        self.assertTrue(all(h["kind"] == "deity" for h in filtered["hits"]))
+        self.assertIn("nabu-god", slugs)
+        self.assertNotIn("nabu", slugs)
+        code, empty = self._json("/api/search?q=xyzzy-not-written")
+        self.assertEqual(code, 200)
+        self.assertEqual(empty["hits"], [])
 
     def test_pages_render(self):
         for path in ("/", "/archive", "/propose", "/ledger", "/e/nabu", "/e/missing"):
@@ -343,6 +397,16 @@ class HttpTests(TmpTablet):
         self.assertIn('data-facet="status"', home)
         self.assertIn("/?kind=tool", home)
         self.assertNotIn("/?status=tool", home)
+        code, miss = self._html("/?q=xyzzy-not-written")
+        self.assertEqual(code, 200)
+        self.assertIn("Nothing on the tablet", miss)
+        self.assertIn("xyzzy-not-written", miss)
+        self.assertIn("empty-state", miss)
+        self.assertIn("Open the tablet", miss)
+        code, filtered = self._html("/?q=nabu&kind=deity")
+        self.assertEqual(code, 200)
+        self.assertIn("/e/nabu-god", filtered)
+        self.assertIn('aria-current="true"', filtered)
 
     def test_entry_offers_revise_and_grouped_claims(self):
         code, html = self._html("/e/nabu")

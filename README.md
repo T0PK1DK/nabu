@@ -6,6 +6,8 @@ Version 0.3 adds claim-aware FTS5 search (Porter stemming, prefix match, column-
 
 Version 0.3.1 revises an existing tablet from `/propose?slug=…`, shows a live citation-completeness meter, groups claims by source host, and fixes FTS snippets so a claim-only match quotes the claim instead of the summary. Search filters are chips. The archive no longer follows a drag as a click.
 
+Search prefixes every bare token, and if an AND query is empty it retries as OR. A miss shows the asked line, the active filters, and a way back to the open tablet.
+
 ## Run
 
 ```bash
@@ -32,7 +34,7 @@ CI runs the same command on every push ([`.github/workflows/test.yml`](.github/w
 
 | Path | What it is |
 | --- | --- |
-| `/` | Search the tablet. Filter by kind or status chips. |
+| `/` | Search the tablet. Partial stems match. Filter by kind or status chips. A miss is named, not blank. |
 | `/e/:slug` | An entry, its claims grouped by host, related tablets, backlinks, revisions. **Revise this tablet** opens the propose form already filled. |
 | `/archive` | 3D hall of tablets. Orbit, pinch or scroll to approach, click to read. Not a game. |
 | `/propose` | Cut a new line. Same judge as the API. The completeness meter updates as claims change. |

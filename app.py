@@ -79,9 +79,31 @@ def voice_for(q: str, count: int) -> str:
     return f"{words.get(count, str(count))} lines were already written."
 
 
-def render_hits(hits: list[dict]) -> str:
+def render_empty(q: str, kind: str = "", status: str = "") -> str:
+    asked = q or "that line"
+    bits = []
+    if kind:
+        bits.append(f"kind {esc(kind)}")
+    if status:
+        bits.append(f"status {esc(status)}")
+    among = (" among " + " and ".join(bits)) if bits else ""
+    actions = []
+    if kind or status:
+        actions.append(f'<a class="chip" href="{esc(search_href(q, "", ""))}">Clear filters</a>')
+    actions.append('<a class="chip" href="/">Open the tablet</a>')
+    return (
+        '<div class="empty-state" role="status">'
+        f'<p class="empty">Nothing on the tablet for “{esc(asked)}”{among}.</p>'
+        '<p class="empty-hint">The clay only answers what is already cut. '
+        "Try a shorter stem, or open the whole tablet.</p>"
+        f'<div class="chips">{"".join(actions)}</div>'
+        "</div>"
+    )
+
+
+def render_hits(hits: list[dict], q: str = "", kind: str = "", status: str = "") -> str:
     if not hits:
-        return '<p class="empty">Nothing on the tablet for that.</p>'
+        return render_empty(q, kind, status)
     parts = []
     for i, hit in enumerate(hits, 1):
         status = hit["status"]
@@ -144,7 +166,7 @@ def render_home(q: str, kind: str = "", status: str = "") -> bytes:
     hits = search(q, kind=kind or None, status=status or None)
     tablet = stats()
     kinds = [row["kind"] for row in tablet["by_kind"]]
-    if q and not hits:
+    if not hits:
         label = "No hits"
     elif q:
         label = "Hits"
@@ -154,7 +176,7 @@ def render_home(q: str, kind: str = "", status: str = "") -> bytes:
         "index.html",
         {
             "QUERY": esc(q),
-            "RESULTS": render_hits(hits),
+            "RESULTS": render_hits(hits, q, kind, status),
             "LABEL": esc(label),
             "COUNT": f"{len(hits):02d}",
             "VOICE": esc(voice_for(q, len(hits))),
