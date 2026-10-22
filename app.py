@@ -232,12 +232,34 @@ def get_entry(slug):
 
 
 def fts_match(q):
-    parts = []
-    for part in q.split():
+    """FTS5 MATCH: keep stemming, prefix every bare token of two or more letters.
+
+    Folded from PR #3. Quoted phrases stay exact. An empty AND query is retried
+    as OR in search(), so a partial first word still finds the line.
+    """
+    terms = []
+    for part in (q or "").split():
         cleaned = part.replace('"', "")
         if cleaned:
-            parts.append('"' + cleaned + '"')
-    return " ".join(parts)
+            terms.append(cleaned + "*" if len(cleaned) >= 2 else cleaned)
+    return " AND ".join(terms)
+
+
+def _match_rows(conn, match):
+    try:
+        return conn.execute(
+            """
+            SELECT e.slug, e.title, e.kind, e.summary, e.status
+            FROM entries_fts
+            JOIN entries e ON e.slug = entries_fts.slug
+            WHERE entries_fts MATCH ?
+            ORDER BY bm25(entries_fts)
+            LIMIT 20
+            """,
+            (match,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
 
 
 def search(q):
@@ -253,20 +275,9 @@ def search(q):
     if not match:
         conn.close()
         return []
-    try:
-        rows = conn.execute(
-            """
-            SELECT e.slug, e.title, e.kind, e.summary, e.status
-            FROM entries_fts
-            JOIN entries e ON e.slug = entries_fts.slug
-            WHERE entries_fts MATCH ?
-            ORDER BY bm25(entries_fts)
-            LIMIT 20
-            """,
-            (match,),
-        ).fetchall()
-    except sqlite3.OperationalError:
-        rows = []
+    rows = _match_rows(conn, match)
+    if not rows and " AND " in match:
+        rows = _match_rows(conn, match.replace(" AND ", " OR "))
     conn.close()
     return [dict(r) for r in rows]
 
@@ -714,7 +725,7 @@ def voice_for(q, count):
     if not q:
         return "The tablet is open. Ask, and I will find the line."
     if count == 0:
-        return "I turned the tablet. That is not written."
+        return "I turned the tablet. That line is not written."
     if count == 1:
         return "One line was already there."
     words = {
@@ -733,9 +744,21 @@ def voice_for(q, count):
     return f"{words.get(count, str(count))} lines were already written."
 
 
-def render_hits(hits):
+def render_empty(q):
+    asked = q or "that line"
+    return (
+        '<div class="empty-state" role="status">'
+        f'<p class="empty">Nothing on the tablet for “{esc(asked)}”.</p>'
+        '<p class="empty-hint">The clay only answers what is already cut. '
+        "Try a shorter stem, or open the whole tablet.</p>"
+        '<a class="chip" href="/tablet">Open the tablet</a>'
+        "</div>"
+    )
+
+
+def render_hits(hits, q=""):
     if not hits:
-        return '<p class="empty">Nothing on the tablet for that.</p>'
+        return render_empty(q)
     parts = []
     for i, hit in enumerate(hits, 1):
         status = hit["status"]
@@ -755,7 +778,7 @@ def render_hits(hits):
 def render_home(q):
     q = (q or "").strip()
     hits = search(q)
-    if q and not hits:
+    if not hits:
         label = "No hits"
     elif q:
         label = "Hits"
@@ -765,7 +788,7 @@ def render_home(q):
         "index.html",
         {
             "QUERY": esc(q),
-            "RESULTS": render_hits(hits),
+            "RESULTS": render_hits(hits, q),
             "LABEL": esc(label),
             "COUNT": f"{len(hits):02d}",
             "VOICE": esc(voice_for(q, len(hits))),

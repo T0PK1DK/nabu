@@ -144,6 +144,7 @@
     gap: 12px;
     border-bottom: 1px solid rgba(201, 133, 74, .55);
   }
+  .field:focus-within { box-shadow: 0 2px 0 var(--bronze-2); }
   input[type="search"] {
     flex: 1;
     min-width: 0;
@@ -358,7 +359,16 @@
   .status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .status.draft { color: var(--draft); }
   .status.disputed { color: var(--disputed); }
-  .empty { margin: 22px 0 18px; color: var(--muted); font-size: 18px; }
+  .empty { margin: 22px 0 8px; color: var(--muted); font-size: 18px; }
+  .empty-state { padding: 8px 0 18px; }
+  .empty-hint { margin: 0 0 12px; color: #8d7b68; font-size: 15px; line-height: 1.45; }
+  .chip {
+    display: inline-flex; align-items: center; min-height: 36px; padding: 4px 12px;
+    border-radius: 2px; border: 1px solid rgba(201, 133, 74, .45); color: var(--bronze-2);
+    text-decoration: none; font-size: 13px; letter-spacing: .04em;
+  }
+  .chip:hover { background: rgba(201, 133, 74, .14); }
+  .status { border: 1px solid currentColor; border-radius: 2px; padding: 3px 8px 2px; background: rgba(16, 12, 9, .28); }
   .colophon {
     position: relative;
     z-index: 1;
@@ -379,6 +389,19 @@
     .entry p { font-size: 15px; }
     .sage-text { font-size: 16px; }
   }
+  @media (max-width: 430px) {
+    .room { padding: 10px 10px calc(36px + env(safe-area-inset-bottom)); }
+    .slab { padding: 12px 12px 6px; }
+    .presence { gap: 10px; margin-bottom: 12px; }
+    .presence img { width: 52px; height: 70px; }
+    .voice { font-size: 16px; }
+    input[type="search"] { font-size: 18px; }
+    h2 { font-size: 18px; }
+    .line { flex-direction: column; gap: 6px; align-items: flex-start; }
+    .num { padding-top: 2px; }
+    a.hit { grid-template-columns: 28px 1fr; gap: 6px 10px; padding: 14px 0 13px; }
+    .chip { min-height: 44px; }
+  }
   @media (prefers-reduced-motion: reduce) {
     .registers, .presence img, .registers.fresh .hit, .tome, .tome .leaf, .mote,
     .sage, .sage-sources li, .portal, .seal { animation: none !important; transition: none; }
@@ -393,7 +416,7 @@
       <div class="presence">
         <img src="/static/scribe.jpg" alt="Nabu, the scribe" width="86" height="114">
         <div>
-          <a class="brand" href="/">Nabu</a>
+          <a class="brand" href="/tablet">Nabu</a>
           <p class="voice" id="voice" aria-live="polite">{{VOICE}}</p>
         </div>
       </div>
@@ -439,6 +462,8 @@
   var seeking = ["I lift the stylus.", "I search the clay.", "I read only what is written."];
   var GLYPHS = Array.from("𒀭𒀸𒁀𒁹𒂗𒃲𒄿𒅆𒆠𒇻𒈨𒉡𒊩𒋗𒌋𒌑𒍣𒐕𒐖𒐗𒀀𒁲𒂊𒆳");
   var timer = 0;
+  var liveTimer = 0;
+  var seq = 0;
   var asking = 0;
   var murmur = 0;
   var stirTimer = 0;
@@ -623,9 +648,10 @@
       });
   }
 
-  function answer(n) {
+  function answer(n, q) {
     var words = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve"];
-    if (!n) return "I turned the tablet. That is not written.";
+    if (!q) return "The tablet is open. Ask, and I will find the line.";
+    if (!n) return "I turned the tablet. That line is not written.";
     if (n === 1) return "One line was already there.";
     return (words[n] || String(n)) + " lines were already written.";
   }
@@ -663,21 +689,39 @@
     return a;
   }
 
+  function paintEmpty(q) {
+    var wrap = document.createElement("div");
+    wrap.className = "empty-state";
+    wrap.setAttribute("role", "status");
+    var empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "Nothing on the tablet for “" + (q || "that line") + "”.";
+    var hint = document.createElement("p");
+    hint.className = "empty-hint";
+    hint.textContent = "The clay only answers what is already cut. Try a shorter stem, or open the whole tablet.";
+    var open = document.createElement("a");
+    open.className = "chip";
+    open.href = "/tablet";
+    open.textContent = "Open the tablet";
+    wrap.appendChild(empty);
+    wrap.appendChild(hint);
+    wrap.appendChild(open);
+    return wrap;
+  }
+
   function paint(q, hits, fresh) {
     registers.replaceChildren();
     if (!hits.length) {
-      var empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Nothing on the tablet for that.";
-      registers.appendChild(empty);
+      registers.appendChild(paintEmpty(q));
     } else {
       hits.forEach(function (h, i) { registers.appendChild(hit(h, i)); });
     }
     registers.classList.toggle("fresh", !!(fresh && !reduced));
-    voice.textContent = q ? answer(hits.length) : "The tablet is open. Ask, and I will find the line.";
+    voice.textContent = answer(hits.length, q);
   }
 
   function ask(q, ritual) {
+    var mine = ++seq;
     if (timer) clearInterval(timer);
     if (ritual) stir();
     consult(q);
@@ -689,18 +733,19 @@
       timer = setInterval(function () {
         step = (step + 1) % seeking.length;
         voice.textContent = seeking[step];
-      }, 380);
+      }, 280);
     }
     var started = performance.now();
     return fetch("/api/search?q=" + encodeURIComponent(q))
       .then(function (res) { return res.json(); })
       .then(function (data) {
-        var wait = ritual && !reduced ? Math.max(0, 1100 - (performance.now() - started)) : 0;
+        var wait = ritual && !reduced ? Math.max(0, 220 - (performance.now() - started)) : 0;
         return new Promise(function (resolve) {
           setTimeout(function () { resolve(data); }, wait);
         });
       })
       .then(function (data) {
+        if (mine !== seq) return;
         clearInterval(timer);
         timer = 0;
         button.disabled = false;
@@ -709,16 +754,31 @@
         paint(q, data.hits || [], ritual);
       })
       .catch(function () {
+        if (mine !== seq) return;
         location.href = q ? "/tablet?q=" + encodeURIComponent(q) : "/tablet";
       });
   }
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
+    if (liveTimer) clearTimeout(liveTimer);
     var q = input.value.trim();
     history.pushState({ q: q }, "", q ? "/tablet?q=" + encodeURIComponent(q) : "/tablet");
     ask(q, true);
   });
+
+  input.addEventListener("input", function () {
+    if (liveTimer) clearTimeout(liveTimer);
+    liveTimer = setTimeout(function () {
+      var q = input.value.trim();
+      history.replaceState({ q: q }, "", q ? "/tablet?q=" + encodeURIComponent(q) : "/tablet");
+      ask(q, false);
+    }, 160);
+  });
+  if (window.matchMedia("(max-width: 430px)").matches) {
+    input.removeAttribute("autofocus");
+    input.blur();
+  }
 
   window.addEventListener("popstate", function () {
     var q = new URLSearchParams(location.search).get("q") || "";
