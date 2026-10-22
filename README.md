@@ -67,6 +67,6 @@ Verified means every stored claim has an http or https URL and a retrieval date.
 
 `preview/` holds a single-file Nabu built as a claude.ai artifact, where Claude writes the answers. It follows Perplexity's shape: a slim sidebar with your library, an ask box with All, Encyclopedia, How-to, and Compare focus, and a thread where each question gets source cards, an answer with citation pills, an action bar, and related questions that continue the thread.
 
-Nabu adds its own: answers shaped by intent (key facts, steps, comparison tables, timelines), a confidence badge, "Not settled" and "May have changed" notes, a Sources tab with live web searches, a lapis and cuneiform look in light and dark, and text that resolves from glyphs as it streams.
+Nabu adds its own: books that float behind every page; Nabu himself as a living sage, an all-seeing eye in a turning ring of cuneiform that greets you, listens while you type, thinks while he writes, follows your cursor, and narrates each answer; answers shaped by intent (key facts, steps, comparison tables, timelines), a confidence badge, "Not settled" and "May have changed" notes, a Sources tab with live web searches, a lapis and cuneiform look in light and dark, and text that resolves from glyphs as it streams.
 
 Run `python3 preview/build.py` to produce `preview/nabu.html`.
