@@ -69,4 +69,6 @@ Verified means every stored claim has an http or https URL and a retrieval date.
 
 Nabu adds its own: books that float behind every page; Nabu himself as a living sage, an all-seeing eye in a turning ring of cuneiform that greets you, listens while you type, thinks while he writes, follows your cursor, and narrates each answer; answers shaped by intent (key facts, steps, comparison tables, timelines), a confidence badge, "Not settled" and "May have changed" notes, a Sources tab with live web searches, a lapis and cuneiform look in light and dark, and text that resolves from glyphs as it streams.
 
+It also borrows from Google: instant answers computed on the page with no wait (math, unit conversions, time and date, coin flips, dice), a knowledge panel beside the answer on wide screens, Google-style web results with a Links tab, and search suggestions as you type.
+
 Run `python3 preview/build.py` to produce `preview/nabu.html`.

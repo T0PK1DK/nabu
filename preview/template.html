@@ -261,6 +261,46 @@
     .focus button span.lbl { display: none; }
   }
 
+  /* Google-style pieces */
+  .instant { margin-top: 18px; padding: 18px 20px; border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1px var(--line-2), var(--shadow); animation: fade .3s ease both; }
+  .instant .k { color: var(--muted); font: 500 13px var(--ui); }
+  .instant .big { margin-top: 4px; font: 500 clamp(30px, 6vw, 44px)/1.1 var(--ui); letter-spacing: -.02em; color: var(--ink); overflow-wrap: anywhere; }
+  .instant .small { margin-top: 6px; color: var(--muted); font-size: 14px; }
+  .webres { margin-top: 30px; }
+  .webres h3, .panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font: 500 15px var(--ui); }
+  .wr { display: block; padding: 14px 0; border-top: 1px solid var(--line); text-decoration: none; animation: fade .3s ease both; }
+  .wr .crumb { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .wr .crumb .fav { width: 26px; height: 26px; border-radius: 50%; font-size: 11px; }
+  .wr .site { display: block; font-size: 14px; color: var(--ink); line-height: 1.2; }
+  .wr .url { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wr .tt { display: block; margin-top: 6px; font: 500 19px/1.3 var(--ui); color: var(--lapis); }
+  .wr:hover .tt { text-decoration: underline; text-underline-offset: 3px; }
+  .wr p { margin: 4px 0 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+  .more-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .more-btn:hover { border-color: var(--lapis); color: var(--lapis); }
+  .tview { width: min(1180px, 100%); margin: 0 auto; padding: 8px 16px 190px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .tview .thread { width: 100%; max-width: 760px; margin: 0; padding: 0; }
+  .panel { display: none; }
+  @media (min-width: 1240px) {
+    .tview { grid-template-columns: minmax(0, 728px) minmax(0, 340px); justify-content: center; }
+    .panel { display: block; position: sticky; top: 70px; align-self: start; margin-top: 64px; }
+    .panel:empty { display: none; }
+    .turn.main .answer .tbl.facts { display: none; }
+  }
+  .kp { padding: 18px; border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1px var(--line), var(--shadow); animation: fade .4s ease both; }
+  .kp h2 { margin: 0; font: 600 24px/1.2 var(--ui); letter-spacing: -.02em; }
+  .kp .sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+  .kp .open { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 7px 13px; border-radius: 999px; background: var(--lapis); color: var(--on-lapis); text-decoration: none; font-size: 13px; font-weight: 500; }
+  .kp .desc { margin: 12px 0 0; font: 400 15px/1.6 var(--serif); color: var(--ink-2); }
+  .kp dl { margin: 14px 0 0; display: grid; gap: 7px; font-size: 14px; }
+  .kp dl div { display: grid; grid-template-columns: 112px 1fr; gap: 10px; }
+  .kp dt { color: var(--muted); font-weight: 500; }
+  .kp dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  .kp h4 { margin: 18px 0 8px; font: 500 13px var(--ui); color: var(--muted); }
+  .kp .also { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kp .also button { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .kp .also button:hover { border-color: var(--lapis); color: var(--lapis); }
+
   /* Floating library: books drifting behind everything */
   .library { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: opacity .8s ease; }
   body:not(.at-home) .library { opacity: .55; }
@@ -377,13 +417,14 @@
       </div>
     </section>
 
-    <section class="thread" id="thread" hidden>
+    <div class="tview" id="tview" hidden>
+    <section class="thread" id="thread">
       <nav class="tabs" role="tablist">
         <button class="tab" role="tab" type="button" data-tab="answer" aria-selected="true">
           <span class="glyph" style="opacity: 1">𒀭</span>Answer
         </button>
         <button class="tab" role="tab" type="button" data-tab="sources" aria-selected="false">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Sources <span class="n" id="src-count"></span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Links <span class="n" id="src-count"></span>
         </button>
       </nav>
       <div id="pane-answer"></div>
@@ -391,9 +432,13 @@
         <div class="slist" id="slist"></div>
         <div class="label">Search the live web</div>
         <div class="live" id="live"></div>
+        <div class="label">Web results</div>
+        <div id="links-web"></div>
         <div class="how"><b>How Nabu answers.</b> Claude writes each answer from what it learned in training; this view cannot read the live web. Sources are places to check, chosen by the model, not proof of where each sentence came from. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged in the answer. No ads, no sponsored results, no tracking.</div>
       </div>
     </section>
+    <aside class="panel" id="panel" aria-label="Knowledge panel"></aside>
+    </div>
   </div>
 </div>
 
@@ -455,7 +500,9 @@
     { t: "How do grimoires work in Black Clover", s: "Worlds of fiction" },
     { t: "Why is the sky blue at noon but red at sunset", s: "Science, explained" },
     { t: "How to start a YouTube channel", s: "Step by step" },
-    { t: "Cloudflare Workers AI vs OpenAI API", s: "Side by side" }
+    { t: "Cloudflare Workers AI vs OpenAI API", s: "Side by side" },
+    { t: "72 f to c", s: "Instant answers" },
+    { t: "youtube", s: "Go to a site" }
   ];
 
   function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; } }
@@ -566,6 +613,15 @@
         .concat(SEED.entries.map(function (e) { return { t: e.title, q: e.title, k: "Tablet" }; }))
         .concat(CARDS.map(function (c) { return { t: c.t, q: c.t, k: "Try" }; }))
         .forEach(function (p) { var key = p.t.toLowerCase(); if (!seen[key] && v.length > 0 && key.indexOf(v) !== -1) { seen[key] = 1; items.push(p); } });
+      items = items.slice(0, 3);
+      if (v.length > 1 && items.length < 6) {
+        var raw = input.value.trim(), done = {};
+        items.forEach(function (it) { done[it.q.toLowerCase()] = 1; });
+        var pats = /^(how|what|why|who|when|where|is|can|does)/i.test(raw) ? [raw, raw + " explained", raw + " for beginners"]
+          : [raw, "what is " + raw, raw + " meaning", "how does " + raw + " work", raw + " vs ", "history of " + raw];
+        if (instant(raw)) pats.unshift(raw);
+        pats.forEach(function (p) { if (items.length < 6 && !done[p.toLowerCase()]) { done[p.toLowerCase()] = 1; items.push({ t: p.trim(), q: p.trim(), k: instant(p) ? "Instant" : "Search" }); } });
+      }
       items = items.slice(0, 6); if (!items.length) return close();
       items.forEach(function (p, i) {
         var b = el("button"); b.type = "button"; b.setAttribute("role", "option"); b.setAttribute("aria-selected", "false");
@@ -576,6 +632,7 @@
       box.hidden = false;
     }
     input.addEventListener("input", render);
+    input.addEventListener("focus", render);
     input.addEventListener("blur", function () { setTimeout(close, 120); });
     input.addEventListener("keydown", function (ev) {
       if (box.hidden) return;
@@ -586,6 +643,54 @@
       else if (ev.key === "Escape") close();
     });
     return close;
+  }
+
+
+  // Instant answers, computed here with no waiting: math, units, time.
+  function calc(expr) {
+    var src = expr.replace(/[×x]/g, "*").replace(/÷/g, "/").replace(/,/g, "").replace(/\s+/g, ""), i = 0;
+    if (!/^[\d.+\-*/()%^]+$/.test(src) || !/[+\-*/%^]/.test(src.replace(/^-/, ""))) return null;
+    function num() { var m = /^\d*\.?\d+(?:e[+-]?\d+)?/i.exec(src.slice(i)); if (!m) throw 0; i += m[0].length; return parseFloat(m[0]); }
+    function atom() { if (src[i] === "-") { i++; return -atom(); } if (src[i] === "(") { i++; var v = add(); if (src[i++] !== ")") throw 0; return v; } var n = num(); if (src[i] === "%") { i++; n /= 100; } return n; }
+    function pow() { var b = atom(); if (src[i] === "^") { i++; return Math.pow(b, pow()); } return b; }
+    function mul() { var v = pow(); while (src[i] === "*" || src[i] === "/") { var o = src[i++], r = pow(); v = o === "*" ? v * r : v / r; } return v; }
+    function add() { var v = mul(); while (src[i] === "+" || src[i] === "-") { var o = src[i++], r = mul(); v = o === "+" ? v + r : v - r; } return v; }
+    try { var out = add(); if (i !== src.length || !isFinite(out)) return null; return out; } catch (e) { return null; }
+  }
+  var UNITS = {
+    km: ["length", 1000], m: ["length", 1], cm: ["length", .01], mm: ["length", .001], mi: ["length", 1609.344], mile: ["length", 1609.344], miles: ["length", 1609.344], ft: ["length", .3048], feet: ["length", .3048], foot: ["length", .3048], in: ["length", .0254], inch: ["length", .0254], inches: ["length", .0254], yd: ["length", .9144], yards: ["length", .9144],
+    kg: ["mass", 1], g: ["mass", .001], lb: ["mass", .45359237], lbs: ["mass", .45359237], pound: ["mass", .45359237], pounds: ["mass", .45359237], oz: ["mass", .028349523], ounces: ["mass", .028349523],
+    l: ["volume", 1], liter: ["volume", 1], liters: ["volume", 1], ml: ["volume", .001], gal: ["volume", 3.785411784], gallon: ["volume", 3.785411784], gallons: ["volume", 3.785411784], cup: ["volume", .2365882365], cups: ["volume", .2365882365],
+    c: ["temp"], f: ["temp"], k: ["temp"], celsius: ["temp"], fahrenheit: ["temp"], kelvin: ["temp"]
+  };
+  function fmt(n) { var a = Math.abs(n); if (a !== 0 && (a < 1e-6 || a >= 1e15)) return n.toExponential(6).replace(/\.?0+e/, "e"); return n.toLocaleString("en-US", { maximumFractionDigits: a < 1 ? 8 : 6 }); }
+  function instant(q) {
+    var t = q.trim().toLowerCase().replace(/[?!]+$/, "").replace(/^(what is|what's|whats|calculate|compute|convert)\s+/, "");
+    var v = calc(t.replace(/=$/, ""));
+    if (v !== null) return { k: q.trim().replace(/[?]+$/, "") + " =", big: fmt(v), small: "Calculator", say: "That one I can do in my head." };
+    var m = /^(-?[\d.,]+)\s*°?\s*([a-z]+)\s+(?:to|in|into|as)\s+°?([a-z]+)$/.exec(t);
+    if (m && UNITS[m[2]] && UNITS[m[3]]) {
+      var x = parseFloat(m[1].replace(/,/g, "")), a = UNITS[m[2]], b = UNITS[m[3]], out;
+      if (a[0] !== b[0]) return null;
+      if (a[0] === "temp") {
+        var ab = function (u) { return u.charAt(0); }, from = ab(m[2]), to = ab(m[3]);
+        var kel = from === "c" ? x + 273.15 : from === "f" ? (x - 32) * 5 / 9 + 273.15 : x;
+        out = to === "c" ? kel - 273.15 : to === "f" ? (kel - 273.15) * 9 / 5 + 32 : kel;
+      } else out = x * a[1] / b[1];
+      var lab = function (u) { return a[0] === "temp" ? "°" + u.charAt(0).toUpperCase() : u; };
+      if (a[0] === "temp") out = Math.round(out * 10) / 10;
+      return { k: fmt(x) + " " + lab(m[2]) + " =", big: fmt(out) + " " + lab(m[3]), small: "Unit converter", say: "Measured and weighed. Here you are." };
+    }
+    if (/^(what time is it|time|current time|time now|what's the time)$/.test(t)) {
+      var d = new Date(); return { k: "Local time", big: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }), small: d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }), say: "The stars say it is this hour." };
+    }
+    if (/^(date|today|todays date|today's date|what day is it|what is the date|what's the date)$/.test(t)) {
+      var d2 = new Date(); return { k: "Today", big: d2.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }), small: String(d2.getFullYear()), say: "The tablet's date is set." };
+    }
+    if (/^(flip a coin|coin flip|heads or tails)$/.test(t)) return { k: "Coin flip", big: Math.random() < .5 ? "Heads" : "Tails", small: "Search again to flip again", say: "Fate has spoken." };
+    var r = /^(?:roll a die|roll a dice|roll dice|random number)(?:\s+(?:1\s*-\s*|between 1 and |to )?(\d+))?$/.exec(t);
+    if (r) { var max = parseInt(r[1] || (t.indexOf("roll") === 0 ? "6" : "100"), 10); return { k: "Random number, 1 to " + max, big: String(1 + Math.floor(Math.random() * max)), small: "Search again to roll again", say: "The dice are cast." }; }
+    return null;
   }
 
   // Tablet
@@ -649,6 +754,8 @@
     this.rel = el("div", "related"); this.rel.hidden = true;
     var rh = el("h3"); rh.appendChild(svg(I.related)); rh.appendChild(document.createTextNode("Related")); this.rel.appendChild(rh); root.appendChild(this.rel);
     this.topics = el("div", "topics"); this.topics.hidden = true; root.appendChild(this.topics);
+    this.results = []; this.web = el("div", "webres"); this.web.hidden = true; root.insertBefore(this.web, this.rel);
+    if (isMain) root.classList.add("main");
     if (!fast) this.step("Understanding the question");
   }
   Turn.prototype.speak = function (text) { this.say.replaceChildren(el("b", null, "Nabu"), document.createTextNode(text)); };
@@ -667,9 +774,10 @@
     if (tag !== "fact") this.factTable = null;
     switch (tag) {
       case "intent": this.intent = val.toLowerCase().split(/\W/)[0]; return;
-      case "title": if (this.main) current.title = val; return;
+      case "title": if (this.main) { current.title = val; this.title = val; this.kp(); } return;
       case "sub": case "conf":
         if (tag === "conf") this.conf = val.toLowerCase().split(/\W/)[0];
+        else { this.sub = val; this.kp(); }
         return;
       case "site":
         var ps = val.split("|").map(clean), url = ps[1] || "";
@@ -681,7 +789,7 @@
         this.paintSources();
         if (this.intent === "go" && this.sources.length === 1 && !this.extra.querySelector(".portal")) this.extra.appendChild(portal(src));
         return;
-      case "tldr": n = this.block(el("p", "tldr")); break;
+      case "tldr": n = this.block(el("p", "tldr")); if (this.main && !this.lead) { this.lead = val.replace(/\s*\[\d+\]/g, ""); this.kp(); } break;
       case "p": n = this.block(el("p")); break;
       case "h": n = this.block(el("h2")); break;
       case "point": case "step": case "time":
@@ -694,6 +802,7 @@
         var kv = val.split("|"); if (kv.length < 2) return;
         if (!this.factTable) { var w = this.block(el("div", "tbl facts")); var t = el("table"); w.appendChild(t); this.factTable = el("tbody"); t.appendChild(this.factTable); }
         var tr = el("tr"); tr.appendChild(el("td", null, clean(kv[0]))); n = el("td"); tr.appendChild(n); this.factTable.appendChild(tr); val = clean(kv.slice(1).join("|"));
+        if (this.main) { (this.facts = this.facts || []).push([clean(kv[0]), val]); this.kp(); }
         break;
       case "row":
         var cells = val.split("|").map(clean);
@@ -706,16 +815,41 @@
         var box = this.block(el("div", "note " + tag)); box.appendChild(svg(tag === "unsure" ? I.q : I.fresh));
         var body = el("span"); body.appendChild(el("b", null, tag === "unsure" ? "Not settled" : "May have changed")); n = el("span"); body.appendChild(n); box.appendChild(body);
         break;
+      case "result":
+        var rp = val.split("|").map(clean), ru = rp[1] || "";
+        if (!/^https:\/\/[^\s/]+\.[^\s]+$/i.test(ru) || this.results.length >= 8 || !rp[0]) return;
+        this.results.push({ title: rp[0], url: ru, snippet: rp.slice(2).join(" | ") }); this.paintWeb(); return;
       case "ask":
         if (this.asks >= 5) return; this.asks++; this.rel.hidden = false;
         var r = el("button", "rel"); r.type = "button"; r.appendChild(el("span", "arr", "↳")); r.appendChild(el("span", null, val)); r.appendChild(el("span", "plus", "+"));
         r.addEventListener("click", function () { follow(val); }); this.rel.appendChild(r); return;
       case "next":
         if (this.nexts >= 5) return; this.nexts++; this.topics.hidden = false;
-        var tbn = el("button", null, val); tbn.type = "button"; tbn.addEventListener("click", function () { go(val); }); this.topics.appendChild(tbn); return;
+        var tbn = el("button", null, val); tbn.type = "button"; tbn.addEventListener("click", function () { go(val); }); this.topics.appendChild(tbn);
+        if (this.main) { (this.also = this.also || []).push(val); this.kp(); } return;
       default: return;
     }
     write(n, val, this, this.fast); this.bump();
+  };
+  Turn.prototype.paintWeb = function () {
+    var w = this.web; w.replaceChildren(); w.hidden = false;
+    var h = el("h3"); h.appendChild(svg(I.all)); h.appendChild(document.createTextNode("Web results")); w.appendChild(h);
+    this.results.slice(0, 4).forEach(function (r) { w.appendChild(webRow(r)); });
+    var more = el("button", "more-btn", this.results.length > 4 ? "More results (" + this.results.length + ")" : "More on the web"); more.type = "button";
+    more.addEventListener("click", function () { showTab("sources"); }); w.appendChild(more);
+    paintSourceTab();
+  };
+  Turn.prototype.kp = function () {
+    if (!this.main || this.fast === "x") return;
+    var p = $("panel"), self = this; p.replaceChildren();
+    if (!this.title || this.intent === "quick") return;
+    var c = el("div", "kp"); c.appendChild(el("h2", null, this.title)); if (this.sub) c.appendChild(el("p", "sub", this.sub));
+    var off = this.sources.filter(function (s) { return s.type === "official"; })[0];
+    if (off) { var a = el("a", "open", "Official site ↗"); a.href = off.url; a.target = "_blank"; a.rel = "noopener"; c.appendChild(a); }
+    if (this.lead) c.appendChild(el("p", "desc", this.lead));
+    if (this.facts && this.facts.length) { var dl = el("dl"); this.facts.slice(0, 8).forEach(function (f) { var d = el("div"); d.appendChild(el("dt", null, f[0])); d.appendChild(el("dd", null, f[1])); dl.appendChild(d); }); c.appendChild(dl); }
+    if (this.also && this.also.length) { c.appendChild(el("h4", null, "People also search for")); var al = el("div", "also"); this.also.forEach(function (t) { var b = el("button", null, t); b.type = "button"; b.addEventListener("click", function () { go(t); }); al.appendChild(b); }); c.appendChild(al); }
+    p.appendChild(c);
   };
   Turn.prototype.bump = function () {
     this.parts++;
@@ -774,6 +908,13 @@
     this.answer.appendChild(el("div", "err", msg));
   };
 
+  function webRow(r) {
+    var a = el("a", "wr"); a.href = r.url; a.target = "_blank"; a.rel = "noopener";
+    var cr = el("span", "crumb"); cr.appendChild(el("span", "fav", shortHost(r.url).charAt(0).toUpperCase()));
+    var ct = el("span"); ct.style.minWidth = "0"; ct.appendChild(el("span", "site", shortHost(r.url).charAt(0).toUpperCase() + shortHost(r.url).slice(1)));
+    var u = r.url.replace(/^https:\/\//, "").replace(/\/$/, "").split("/"); ct.appendChild(el("span", "url", "https://" + u.join(" › "))); cr.appendChild(ct); a.appendChild(cr);
+    a.appendChild(el("span", "tt", r.title)); if (r.snippet) a.appendChild(el("p", null, r.snippet)); return a;
+  }
   function portal(s) {
     var a = el("a", "portal"); a.href = s.url; a.target = "_blank"; a.rel = "noopener";
     a.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase()));
@@ -784,7 +925,11 @@
   function paintSourceTab() {
     var all = [], seen = {};
     turns.forEach(function (t) { t.sources.forEach(function (s) { if (!seen[s.url]) { seen[s.url] = 1; all.push(s); } }); });
-    $("src-count").textContent = all.length ? all.length : "";
+    var web = [], wseen = {};
+    turns.forEach(function (t) { (t.results || []).forEach(function (r) { if (!wseen[r.url]) { wseen[r.url] = 1; web.push(r); } }); });
+    var lw = $("links-web"); lw.replaceChildren(); web.forEach(function (r) { lw.appendChild(webRow(r)); });
+    if (!web.length) lw.appendChild(el("p", "side-foot", "Web results appear here once an answer is written."));
+    $("src-count").textContent = (all.length + web.length) || "";
     var box = $("slist"); box.replaceChildren();
     all.forEach(function (s) {
       var a = el("a", "sitem"); a.href = s.url; a.target = "_blank"; a.rel = "noopener";
@@ -831,10 +976,11 @@
     "@time when | what happened   (history, people, stories, products: four to eight, oldest first)",
     "@unsure something disputed, unknown, or commonly gotten wrong   (zero to two)",
     "@fresh something that may have changed since your knowledge was last updated   (zero to two; always include one for prices, versions, rankings, current roles, or ongoing events)",
+    "@result Page title | https://url | one-sentence snippet of what the page says   (four to six web pages a great search engine would rank for this, best first; same certainty rule as @site; include different kinds: reference, official, guides, discussion)",
     "@ask a natural follow-up question the reader might ask next   (four)",
     "@next a related topic, two to four words   (three)",
     "",
-    "Order: @intent @title, the @site lines, @conf, @tldr, @point lines, @fact lines, then depth (@h with @p, @step, @row, or @time), then @unsure @fresh @ask @next.",
+    "Order: @intent @title, the @site lines, @conf, @tldr, @point lines, @fact lines, then depth (@h with @p, @step, @row, or @time), then @unsure @fresh @result @ask @next.",
     "For quick, keep it to @tldr and one or two @point lines before @ask and @next.{TABLET}"
   ].join("\n");
   var FOCUS_HINT = { all: "", know: "The reader chose Encyclopedia focus: treat it as know and go deep.", do: "The reader chose How-to focus: treat it as do, with clear numbered steps.", compare: "The reader chose Compare focus: treat it as compare, with a table and a verdict." };
@@ -858,8 +1004,8 @@
   function openThread(q) {
     token++; if (ctl) ctl.abort();
     $("record").hidden = true; closers.forEach(function (c) { c(); });
-    turns = []; $("pane-answer").replaceChildren(); showTab("answer");
-    document.body.classList.remove("at-home"); $("home").hidden = true; $("thread").hidden = false; $("dock").hidden = false; $("top-new").hidden = false;
+    turns = []; $("pane-answer").replaceChildren(); $("panel").replaceChildren(); showTab("answer");
+    document.body.classList.remove("at-home"); $("home").hidden = true; $("tview").hidden = false; $("dock").hidden = false; $("top-new").hidden = false;
     $("nav-home").removeAttribute("aria-current"); $("nav-tablet").removeAttribute("aria-current");
     live(q); window.scrollTo(0, 0);
   }
@@ -869,6 +1015,13 @@
     openThread(q);
     current = { q: q, title: "", raw: "", turns: [], follow: [], at: Date.now() };
     var turn = new Turn(q, true, false); turns.push(turn); $("pane-answer").appendChild(turn.root);
+    var inst = instant(q);
+    if (inst) {
+      var ic = el("div", "instant"); ic.appendChild(el("div", "k", inst.k)); ic.appendChild(el("div", "big", inst.big)); ic.appendChild(el("div", "small", inst.small)); turn.extra.appendChild(ic);
+      turn.scribe.remove(); turn.trace.replaceChildren(); turn.root.querySelectorAll(".label").forEach(function (l) { l.hidden = true; }); turn.answer.hidden = true;
+      setSage(turn.sage, "idle"); turn.speak(inst.say);
+      current.raw = ""; return;
+    }
     var dm = DOMAIN_RE.exec(q), tab = tabletMatch(q);
     if (dm) turn.extra.appendChild(portal({ name: dm[1].toLowerCase(), url: "https://" + dm[1].toLowerCase() + (dm[2] || "") }));
     if (tab) { var tb = el("button", "tablet"); tb.type = "button"; tb.appendChild(el("span", "fav", "𒀭")); var tt = el("span"); tt.appendChild(el("small", null, "On the tablet · " + verdict(tab) + " ")); tt.appendChild(document.createTextNode(tab.title + ", with cited claims")); tb.appendChild(tt); tb.addEventListener("click", function () { openRecord(tab); }); turn.extra.appendChild(tb); }
@@ -905,7 +1058,7 @@
 
   function home() {
     token++; if (ctl) ctl.abort();
-    $("thread").hidden = true; $("dock").hidden = true; $("home").hidden = false; $("top-new").hidden = true;
+    $("tview").hidden = true; $("dock").hidden = true; $("home").hidden = false; $("top-new").hidden = true;
     $("nav-home").setAttribute("aria-current", "page"); $("nav-tablet").removeAttribute("aria-current");
     setSage($("home-sage"), "idle"); document.body.classList.add("at-home"); $("home-q").value = ""; growHome(); window.scrollTo(0, 0); $("home-q").focus();
   }
