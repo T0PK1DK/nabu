@@ -660,6 +660,54 @@ def allow_answer(ip):
     return True
 
 
+def html_to_text(raw):
+    text = re.sub(r"(?is)<(script|style|noscript|svg)\b.*?>.*?</\1>", " ", raw or "")
+    text = re.sub(r"(?s)<!--.*?-->", " ", text)
+    return plain(text)[:3000]
+
+
+def is_wiki_host(url):
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    return host.endswith("wikipedia.org")
+
+
+def read_page(url):
+    """First 3,000 characters of a non-Wikipedia result page, or empty."""
+    if not is_http_url(url) or is_wiki_host(url):
+        return ""
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as res:
+            ctype = (res.headers.get("Content-Type") or "").lower()
+            if ctype and not re.search(r"text/html|application/xhtml|text/plain", ctype):
+                return ""
+            raw = res.read(80_000).decode("utf-8", "replace")
+        return html_to_text(raw)
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return ""
+
+
+def enrich_pages(sources):
+    extra = [s for s in sources if s.get("url") and not is_wiki_host(s["url"])][:2]
+    for src in extra:
+        text = read_page(src["url"])
+        if text and len(text) > len(src.get("text") or ""):
+            src["text"] = text
+    return sources
+
+
+def keep_known_sources(line, urls):
+    m = re.match(r"@(site|result)\s+(.+)$", (line or "").strip(), re.I)
+    if not m:
+        return True
+    parts = [p.strip() for p in m.group(2).split("|")]
+    url = parts[1] if len(parts) > 1 else ""
+    return url in urls
+
+
 def gather_sources(q):
     cached = cache_get(q)
     if cached is not None:
@@ -683,6 +731,7 @@ def gather_sources(q):
                 seen.add(src["url"])
                 out.append(src)
     out = out[:8]
+    enrich_pages(out)
     cache_put(q, out)
     return out
 
@@ -694,7 +743,7 @@ def header_lines(sources):
 
 
 def answer_messages(q, sources, payload):
-    ctx = "\n\n".join(f"[{i}] {s.get('title') or s['name']} ({s['url']})\n{s['text'][:1500]}" for i, s in enumerate(sources[:5], 1))
+    ctx = "\n\n".join(f"[{i}] {s.get('title') or s['name']} ({s['url']})\n{s['text'][:3000]}" for i, s in enumerate(sources[:5], 1))
     system = (
         "You are Nabu, a search engine and encyclopedia. You answer from the numbered sources below, citing them as [n]. "
         "If the sources do not cover something, you may add well-established general knowledge without a citation, and lower @conf when you rely on it. "
@@ -747,8 +796,10 @@ def answer(payload):
             text = ((data.get("result") or {}).get("response") or "").strip() or None
         except (urllib.error.URLError, OSError, ValueError) as exc:
             print(f"[nabu] Workers AI failed: {exc}")
+    urls = {s["url"] for s in sources}
     body = text.splitlines() if text else extractive_answer(q, sources)
-    return "\n".join(head + [line for line in body if line.strip()])
+    kept = [line for line in body if line.strip() and keep_known_sources(line, urls)]
+    return "\n".join(head + kept)
 
 
 def esc(value):

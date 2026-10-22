@@ -39,6 +39,16 @@ class SearchFoldedFromPR3(unittest.TestCase):
         self.assertIn("empty-state", html)
         self.assertIn("Open the tablet", html)
 
+    def test_drops_invented_sites_and_reads_html(self):
+        urls = {"https://en.wikipedia.org/wiki/Nabu"}
+        self.assertTrue(app.keep_known_sources("@tldr A real line [1]", urls))
+        self.assertTrue(app.keep_known_sources("@site Nabu | https://en.wikipedia.org/wiki/Nabu | reference | god", urls))
+        self.assertFalse(app.keep_known_sources("@site Guess | https://example.invalid/made-up | official | no", urls))
+        text = app.html_to_text("<html><script>void 0</script><p>Nabu keeps the tablet.</p></html>")
+        self.assertIn("Nabu keeps the tablet.", text)
+        self.assertNotIn("void", text)
+        self.assertLessEqual(len(text), 3000)
+
     def test_source_cache_and_rate_limit(self):
         app._SOURCE_CACHE.clear()
         app._RATE.clear()

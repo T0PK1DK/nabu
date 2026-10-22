@@ -155,7 +155,8 @@
   .scard .tt { font-size: 13px; line-height: 1.35; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .scard .meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; min-width: 0; }
   .scard .meta span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .fav { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px; background: var(--lapis); color: var(--on-lapis); font: 600 9px/1 var(--ui); flex: none; }
+  .fav { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px; background: var(--lapis); color: var(--on-lapis); font: 600 9px/1 var(--ui); flex: none; overflow: hidden; }
+  .fav img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
   .scard .meta .i { margin-left: auto; color: var(--faint); }
   .scard.more { justify-content: center; align-items: flex-start; border: 0; }
   .stack { display: flex; }
@@ -522,6 +523,20 @@
 
   function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; } }
   function shortHost(url) { var h = hostOf(url).split("."); return h.length > 2 ? h[h.length - 2] : h[0]; }
+  function favNode(url) {
+    var host = hostOf(url);
+    var letter = (shortHost(url).charAt(0) || "?").toUpperCase();
+    var wrap = el("span", "fav");
+    wrap.setAttribute("aria-hidden", "true");
+    if (!host) { wrap.textContent = letter; return wrap; }
+    var img = document.createElement("img");
+    img.alt = ""; img.width = 16; img.height = 16; img.decoding = "async";
+    img.referrerPolicy = "no-referrer";
+    img.src = "https://icons.duckduckgo.com/ip3/" + host + ".ico";
+    img.addEventListener("error", function () { wrap.textContent = letter; });
+    wrap.appendChild(img);
+    return wrap;
+  }
   function clean(s) { return s.replace(/\*\*|__|`/g, "").replace(/^[-•]\s+/, "").trim(); }
   function glyphLine(n) { var s = ""; for (var i = 0; i < n; i++) s += i % 6 === 5 ? " " : glyph(); return s; }
 
@@ -879,11 +894,11 @@
     shown.forEach(function (s, i) {
       var a = el("a", "scard"); a.href = s.url; a.target = "_blank"; a.rel = "noopener"; a.style.animationDelay = (i * .06) + "s";
       a.appendChild(el("span", "tt", s.why ? s.name + " — " + s.why : s.name));
-      var meta = el("span", "meta"); meta.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase())); meta.appendChild(el("span", null, hostOf(s.url))); meta.appendChild(el("span", "i", String(i + 1)));
+      var meta = el("span", "meta"); meta.appendChild(favNode(s.url)); meta.appendChild(el("span", null, hostOf(s.url))); meta.appendChild(el("span", "i", String(i + 1)));
       a.appendChild(meta); row.appendChild(a);
     });
     var more = el("button", "scard more"); more.type = "button";
-    var st = el("span", "stack"); this.sources.slice(0, 4).forEach(function (s) { st.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase())); });
+    var st = el("span", "stack"); this.sources.slice(0, 4).forEach(function (s) { st.appendChild(favNode(s.url)); });
     more.appendChild(st); more.appendChild(el("span", "tt", this.sources.length > 3 ? "View all " + this.sources.length : "Search the live web"));
     more.addEventListener("click", function () { showTab("sources"); }); row.appendChild(more);
     if (this.main || true) paintSourceTab();
@@ -910,7 +925,7 @@
     if (this.main) { var rw = el("button", "act"); rw.type = "button"; rw.appendChild(svg(I.redo)); rw.appendChild(el("span", null, "Rewrite")); rw.addEventListener("click", function () { go(self.q, true); }); acts.appendChild(rw); }
     if (this.sources.length) {
       var sb = el("button", "act srcs"); sb.type = "button"; var st = el("span", "stack");
-      this.sources.slice(0, 3).forEach(function (s) { st.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase())); });
+      this.sources.slice(0, 3).forEach(function (s) { st.appendChild(favNode(s.url)); });
       sb.appendChild(st); sb.appendChild(el("span", null, this.sources.length + " sources")); sb.addEventListener("click", function () { showTab("sources"); }); acts.appendChild(sb);
     }
     if (/^(high|medium|low)$/.test(this.conf || "")) { var c = el("span", "conf " + this.conf); c.appendChild(el("i")); c.appendChild(document.createTextNode(this.conf.charAt(0).toUpperCase() + this.conf.slice(1) + " confidence")); acts.appendChild(c); }
@@ -926,14 +941,14 @@
 
   function webRow(r) {
     var a = el("a", "wr"); a.href = r.url; a.target = "_blank"; a.rel = "noopener";
-    var cr = el("span", "crumb"); cr.appendChild(el("span", "fav", shortHost(r.url).charAt(0).toUpperCase()));
+    var cr = el("span", "crumb"); cr.appendChild(favNode(r.url));
     var ct = el("span"); ct.style.minWidth = "0"; ct.appendChild(el("span", "site", shortHost(r.url).charAt(0).toUpperCase() + shortHost(r.url).slice(1)));
     var u = r.url.replace(/^https:\/\//, "").replace(/\/$/, "").split("/"); ct.appendChild(el("span", "url", "https://" + u.join(" › "))); cr.appendChild(ct); a.appendChild(cr);
     a.appendChild(el("span", "tt", r.title)); if (r.snippet) a.appendChild(el("p", null, r.snippet)); return a;
   }
   function portal(s) {
     var a = el("a", "portal"); a.href = s.url; a.target = "_blank"; a.rel = "noopener";
-    a.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase()));
+    a.appendChild(favNode(s.url));
     var t = el("span"); t.appendChild(el("strong", null, s.name)); t.appendChild(el("small", null, hostOf(s.url))); a.appendChild(t);
     a.appendChild(el("span", "go", "Open site ↗")); return a;
   }
@@ -949,7 +964,7 @@
     var box = $("slist"); box.replaceChildren();
     all.forEach(function (s) {
       var a = el("a", "sitem"); a.href = s.url; a.target = "_blank"; a.rel = "noopener";
-      a.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase()));
+      a.appendChild(favNode(s.url));
       var t = el("span"); t.style.minWidth = "0"; var h = el("span"); h.appendChild(el("strong", null, s.name)); if (s.type) h.appendChild(el("span", "ty", s.type)); t.appendChild(h);
       if (s.why) t.appendChild(el("p", null, s.why)); t.appendChild(el("span", "u", s.url)); a.appendChild(t); box.appendChild(a);
     });

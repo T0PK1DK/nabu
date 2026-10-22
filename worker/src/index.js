@@ -211,7 +211,75 @@ export async function gather(q, env) {
       if (s && !seen.has(s.url)) { seen.add(s.url); out.push(s); }
     }
   }
-  return out.slice(0, 8);
+  const picked = out.slice(0, 8);
+  await enrichPages(picked);
+  return picked;
+}
+
+function isWikiHost(url) {
+  try {
+    return /(^|\.)wikipedia\.org$/i.test(new URL(url).hostname.replace(/^www\./, ""));
+  } catch {
+    return false;
+  }
+}
+
+export function htmlToText(html) {
+  return clean(String(html || "")
+    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " "));
+}
+
+export async function readPage(url) {
+  try {
+    if (!url || isWikiHost(url)) return "";
+    const res = await fetch(url, {
+      headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return "";
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (ctype && !/text\/html|application\/xhtml|text\/plain/.test(ctype)) return "";
+    const html = await res.text();
+    return htmlToText(html).slice(0, 3000);
+  } catch {
+    return "";
+  }
+}
+
+export async function enrichPages(sources) {
+  const extra = sources.filter((s) => s && s.url && !isWikiHost(s.url)).slice(0, 2);
+  await Promise.all(extra.map(async (s) => {
+    const text = await readPage(s.url);
+    if (text && text.length > String(s.text || "").length) s.text = text;
+  }));
+  return sources;
+}
+
+export function keepKnownSources(line, urls) {
+  const m = /^@(site|result)\s+(.+)$/i.exec(String(line || "").trim());
+  if (!m) return true;
+  const parts = m[2].split("|").map((p) => p.trim());
+  const url = parts[1] || "";
+  return urls.has(url);
+}
+
+function dropInvented(urls) {
+  let buf = "";
+  return new TransformStream({
+    transform(chunk, controller) {
+      buf += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk, { stream: true });
+      const parts = buf.split("\n");
+      buf = parts.pop();
+      for (const line of parts) {
+        if (keepKnownSources(line, urls)) controller.enqueue(line + "\n");
+      }
+    },
+    flush(controller) {
+      if (buf && keepKnownSources(buf, urls)) controller.enqueue(buf);
+    },
+  });
 }
 
 export function headerLines(sources) {
@@ -222,7 +290,7 @@ export function headerLines(sources) {
 }
 
 export function buildMessages(q, sources, body) {
-  const ctx = sources.slice(0, 5).map((s, i) => `[${i + 1}] ${s.title || s.name} (${s.url})\n${String(s.text || "").slice(0, 1500)}`).join("\n\n");
+  const ctx = sources.slice(0, 5).map((s, i) => `[${i + 1}] ${s.title || s.name} (${s.url})\n${String(s.text || "").slice(0, 3000)}`).join("\n\n");
   const system = `You are Nabu, a search engine and encyclopedia. You answer from the numbered sources below, citing them as [n]. If the sources do not cover something, you may add well-established general knowledge without a citation, and lower @conf when you rely on it. Be specific: names, numbers, dates. No filler.\n\n${SPEC}\n\nSources:\n${ctx || "(no sources were found; answer from general knowledge, set @conf low, and say so in @unsure)"}`;
   const history = Array.isArray(body.history) ? body.history.slice(-10).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string").map((m) => ({ role: m.role, content: m.content.slice(0, 6000) })) : [];
   const ask = (history.length ? "Follow-up question: " : "Question: ") + q + (FOCUS[body.focus] ? "\n" + FOCUS[body.focus] : "") + (body.rewrite ? "\nWrite a fresh version of this answer." : "");
@@ -270,6 +338,7 @@ async function answer(request, env, ctx) {
   if (!q) return new Response("q is required", { status: 400 });
 
   const sources = await cachedGather(q, env, ctx);
+  const urls = new Set(sources.map((s) => s.url));
   const head = headerLines(sources).join("\n") + "\n";
   const enc = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -280,7 +349,7 @@ async function answer(request, env, ctx) {
     try {
       if (!env.AI) throw new Error("no AI binding");
       const stream = await env.AI.run(model(env), { messages: buildMessages(q, sources, body), stream: true, max_tokens: 1400, temperature: 0.3 });
-      const reader = stream.pipeThrough(sseToText()).getReader();
+      const reader = stream.pipeThrough(sseToText()).pipeThrough(dropInvented(urls)).getReader();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
