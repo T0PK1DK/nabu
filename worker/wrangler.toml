@@ -1,0 +1,12 @@
+name = "nabu"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# Workers AI: free daily allowance on every Cloudflare account.
+[ai]
+binding = "AI"
+
+[vars]
+NABU_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
+
+# Optional live web results: `wrangler secret put BRAVE_API_KEY`

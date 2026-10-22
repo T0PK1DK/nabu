@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Nabu: a cited answer engine and encyclopedia.">
+</head>
+<body>
+<title>Nabu</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=Noto+Sans+Cuneiform&display=swap">
+<style>
+  /* Layout: Perplexity's shape. A slim sidebar (new search, library), a centered thread column:
+     query → trace → source cards → answer with citation pills → action bar → related → follow-ups, and a pinned ask box.
+     Nabu's own: lapis accent, cuneiform sigil, text that resolves from glyphs as it streams. */
+  :root {
+    --bg: #fbfaf6;
+    --side: #f3f1ea;
+    --card: #ffffff;
+    --soft: #f1efe8;
+    --line: #e7e3d8;
+    --line-2: #d9d4c6;
+    --ink: #1c2226;
+    --ink-2: #3a4247;
+    --muted: #6d7378;
+    --faint: #9a9e9f;
+    --lapis: #2b5aa3;
+    --lapis-soft: rgba(43, 90, 163, .1);
+    --on-lapis: #ffffff;
+    --orb-a: #e9f0ff;
+    --orb-c: #13254a;
+    --gold: #a97d26;
+    --ok: #2f7d4f;
+    --warn: #9a6a12;
+    --low: #b2452f;
+    --shadow: 0 1px 2px rgba(28, 34, 38, .05), 0 8px 24px rgba(28, 34, 38, .06);
+    --ui: "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --serif: "Source Serif 4", "Iowan Old Style", Georgia, serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --cun: "Noto Sans Cuneiform", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #171818; --side: #1d1e1e; --card: #212323; --soft: #262828; --line: #2e3131; --line-2: #3b3f3f;
+      --ink: #ebeae6; --ink-2: #cfcdc7; --muted: #9a9b97; --faint: #6f716e;
+      --lapis: #8aaef0; --lapis-soft: rgba(138, 174, 240, .12); --on-lapis: #10233f; --orb-a: #f2f6ff; --orb-c: #0b1730; --gold: #d8b45e; --ok: #8fd0a2; --warn: #e2c072; --low: #ef9a83;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #171818; --side: #1d1e1e; --card: #212323; --soft: #262828; --line: #2e3131; --line-2: #3b3f3f;
+    --ink: #ebeae6; --ink-2: #cfcdc7; --muted: #9a9b97; --faint: #6f716e;
+    --lapis: #8aaef0; --lapis-soft: rgba(138, 174, 240, .12); --on-lapis: #10233f; --orb-a: #f2f6ff; --orb-c: #0b1730; --gold: #d8b45e; --ok: #8fd0a2; --warn: #e2c072; --low: #ef9a83;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { background: var(--bg); color: var(--ink); }
+  body { margin: 0; font: 15px/1.5 var(--ui); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  a { color: inherit; }
+  button:focus-visible, a:focus-visible, textarea:focus-visible { outline: 2px solid var(--lapis); outline-offset: 2px; }
+  svg { flex: none; }
+
+  .shell { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 920px) { .shell { grid-template-columns: 232px minmax(0, 1fr); } }
+
+  /* Sidebar */
+  .side { display: none; }
+  @media (min-width: 920px) {
+    .side { display: flex; flex-direction: column; gap: 4px; position: sticky; top: 0; height: 100vh; padding: 14px 12px; background: var(--side); border-right: 1px solid var(--line); }
+  }
+  .logo { display: flex; align-items: center; gap: 9px; padding: 6px 8px 14px; background: none; border: 0; cursor: pointer; text-align: left; }
+  .sigil { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--lapis); color: var(--on-lapis); font: 15px/1 var(--cun); }
+  .logo b { font: 600 20px/1 var(--ui); letter-spacing: -.02em; }
+  body.writing .sigil { animation: breathe 1.4s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 0 0 6px var(--lapis-soft); } }
+  .new { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--card); cursor: pointer; font-weight: 500; box-shadow: var(--shadow); }
+  .new kbd { margin-left: auto; }
+  .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 12px; border: 0; border-radius: 9px; background: none; cursor: pointer; color: var(--ink-2); text-align: left; }
+  .nav:hover, .nav[aria-current="page"] { background: var(--soft); color: var(--ink); }
+  .side h3 { margin: 18px 12px 6px; font: 500 12px var(--ui); color: var(--faint); }
+  .recent { display: grid; gap: 1px; overflow-y: auto; min-height: 0; }
+  .recent button { display: block; width: 100%; padding: 6px 12px; border: 0; border-radius: 8px; background: none; text-align: left; cursor: pointer; color: var(--ink-2); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .recent button:hover { background: var(--soft); color: var(--ink); }
+  .side-foot { margin-top: auto; padding: 10px 12px 2px; color: var(--faint); font-size: 12px; line-height: 1.45; }
+  kbd { padding: 1px 6px; border-radius: 5px; border: 1px solid var(--line-2); color: var(--faint); font: 11px var(--mono); background: var(--bg); }
+
+  .main { min-width: 0; position: relative; }
+  .mtop { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; background: color-mix(in srgb, var(--bg) 88%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  @media (min-width: 920px) { .mtop .logo { visibility: hidden; } }
+  body.at-home .mtop .logo { visibility: hidden; }
+  .mtop .logo { padding: 4px 0; }
+  .icon-btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .icon-btn:hover { border-color: var(--line-2); color: var(--ink); }
+
+  /* Ask box */
+  .ask {
+    position: relative; width: 100%; border-radius: 18px; background: var(--card);
+    box-shadow: 0 0 0 1px var(--line-2), var(--shadow); transition: box-shadow .2s ease;
+  }
+  .ask:focus-within { box-shadow: 0 0 0 1px var(--lapis), 0 0 0 4px var(--lapis-soft), var(--shadow); }
+  .ask textarea { display: block; width: 100%; min-height: 56px; max-height: 200px; resize: none; padding: 16px 18px 6px; border: 0; outline: none; background: transparent; color: var(--ink); font: 17px/1.45 var(--ui); }
+  .ask textarea::placeholder { color: var(--faint); }
+  .ask-tools { display: flex; align-items: center; gap: 6px; padding: 6px 8px 8px 10px; }
+  .focus { display: flex; gap: 4px; flex-wrap: wrap; }
+  .focus button { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid transparent; background: none; color: var(--muted); font-size: 13px; cursor: pointer; }
+  .focus button:hover { background: var(--soft); color: var(--ink); }
+  .focus button[aria-pressed="true"] { background: var(--lapis-soft); color: var(--lapis); border-color: color-mix(in srgb, var(--lapis) 30%, transparent); }
+  .send { margin-left: auto; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; border: 0; background: var(--lapis); color: var(--on-lapis); cursor: pointer; }
+  .send:disabled { opacity: .45; cursor: default; }
+  .suggest { position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20; padding: 6px; border-radius: 14px; background: var(--card); box-shadow: 0 0 0 1px var(--line-2), 0 18px 40px rgba(0,0,0,.18); }
+  .suggest button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: 0; border-radius: 9px; background: none; text-align: left; cursor: pointer; color: var(--ink-2); }
+  .suggest button[aria-selected="true"], .suggest button:hover { background: var(--soft); color: var(--ink); }
+  .suggest .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .suggest .s { color: var(--faint); font-size: 12px; }
+
+  /* Home */
+  .home { position: relative; min-height: calc(100vh - 60px); display: grid; align-content: center; justify-items: center; gap: 26px; padding: 24px 16px 64px; overflow: hidden; }
+  .constellation { position: absolute; inset: 0; pointer-events: none; }
+  .constellation span { position: absolute; left: var(--x); top: var(--y); font: var(--s)/1 var(--cun); color: var(--lapis); opacity: 0; animation: twinkle var(--d) ease-in-out var(--delay) infinite; }
+  @keyframes twinkle { 0%, 100% { opacity: 0; transform: translateY(6px); } 50% { opacity: var(--o); transform: translateY(-6px); } }
+  .home-inner { position: relative; width: min(680px, 100%); display: grid; justify-items: center; gap: 18px; }
+  .home .wordmark { margin-top: 4px; }
+  .wordmark { display: flex; align-items: center; gap: 14px; }
+  .wordmark .sigil { display: none; width: 46px; height: 46px; border-radius: 13px; font-size: 25px; box-shadow: 0 10px 30px color-mix(in srgb, var(--lapis) 35%, transparent); }
+  .wordmark h1 { margin: 0; font: 500 clamp(44px, 9vw, 60px)/1 var(--ui); letter-spacing: -.045em; }
+  .home .ask::before { content: ""; position: absolute; inset: -40px -60px; z-index: -1; background: radial-gradient(closest-side, var(--lapis-soft), transparent); pointer-events: none; }
+  .cards { width: min(680px, 100%); display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .tcard { display: grid; grid-template-columns: 38px 1fr; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); text-align: left; cursor: pointer; transition: border-color .2s ease, transform .2s ease; min-width: 0; }
+  .tcard:hover { border-color: var(--line-2); transform: translateY(-1px); }
+  .tcard .g { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 10px; font: 18px/1 var(--cun); color: var(--lapis); background: var(--lapis-soft); }
+  .tcard strong { display: block; font-weight: 500; font-size: 14px; }
+  .tcard small { display: block; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .home-lib { width: min(680px, 100%); }
+  @media (min-width: 920px) { .home-lib { display: none; } }
+  .home-lib h3 { margin: 6px 0 8px; font: 500 12px var(--ui); color: var(--faint); }
+  .home-lib .recent button { padding: 8px 2px; border-bottom: 1px solid var(--line); border-radius: 0; }
+
+  /* Thread */
+  .thread { width: min(760px, 100%); margin: 0 auto; padding: 8px 16px 190px; }
+  .tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--line); margin-bottom: 22px; }
+  .tab { display: inline-flex; align-items: center; gap: 7px; padding: 10px 0 11px; border: 0; background: none; cursor: pointer; color: var(--muted); font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+  .tab .n { font-size: 12px; color: var(--faint); }
+  .turn + .turn { margin-top: 44px; padding-top: 32px; border-top: 1px solid var(--line); }
+  .query { margin: 0; font: 500 clamp(26px, 4.4vw, 34px)/1.18 var(--ui); letter-spacing: -.025em; text-wrap: balance; overflow-wrap: break-word; }
+  .trace { display: grid; gap: 6px; margin: 16px 0 0; padding: 0; list-style: none; }
+  .trace li { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 13px; animation: fade .3s ease both; }
+  .trace li .dot { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-2); border-top-color: var(--lapis); animation: spin .8s linear infinite; }
+  .trace li.done .dot { animation: none; border-color: var(--ok); background: var(--ok); box-shadow: inset 0 0 0 3px var(--card); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .label { display: flex; align-items: center; gap: 8px; margin: 26px 0 12px; font: 500 15px var(--ui); color: var(--ink); }
+  .label svg { color: var(--muted); }
+  .label .sg { font: 15px var(--cun); color: var(--lapis); }
+
+  .srcrow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .scard { display: flex; flex-direction: column; justify-content: space-between; gap: 10px; min-height: 84px; padding: 10px 11px; border-radius: 12px; background: var(--soft); text-decoration: none; border: 1px solid transparent; animation: fade .35s ease both; min-width: 0; cursor: pointer; text-align: left; }
+  .scard:hover { border-color: var(--line-2); background: var(--card); }
+  .scard .tt { font-size: 13px; line-height: 1.35; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .scard .meta { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; min-width: 0; }
+  .scard .meta span:nth-child(2) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fav { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 4px; background: var(--lapis); color: var(--on-lapis); font: 600 9px/1 var(--ui); flex: none; }
+  .scard .meta .i { margin-left: auto; color: var(--faint); }
+  .scard.more { justify-content: center; align-items: flex-start; border: 0; }
+  .stack { display: flex; }
+  .stack .fav { box-shadow: 0 0 0 2px var(--soft); }
+  .stack .fav + .fav { margin-left: -5px; }
+
+  .answer { font: 400 18px/1.7 var(--serif); color: var(--ink-2); }
+  .answer > :first-child { margin-top: 0; }
+  .answer p { margin: 12px 0 0; text-wrap: pretty; overflow-wrap: break-word; }
+  .answer p.tldr { color: var(--ink); }
+  .answer h2 { margin: 26px 0 4px; font: 600 20px/1.3 var(--ui); letter-spacing: -.01em; color: var(--ink); }
+  .answer ul, .answer ol { margin: 10px 0 0; padding-left: 22px; }
+  .answer li { margin-top: 6px; padding-left: 4px; }
+  .answer li::marker { color: var(--faint); }
+  .answer ol li::marker { font: 500 15px var(--ui); color: var(--muted); }
+  .answer strong { color: var(--ink); font-weight: 600; }
+  .tbl { margin-top: 14px; overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  .tbl table { width: 100%; border-collapse: collapse; font: 400 15px/1.45 var(--ui); }
+  .tbl th { text-align: left; padding: 10px 13px; background: var(--soft); color: var(--ink); font-weight: 600; white-space: nowrap; }
+  .tbl td { padding: 10px 13px; border-top: 1px solid var(--line); vertical-align: top; }
+  .tbl.facts td:first-child { color: var(--muted); width: 38%; }
+  .timeline { list-style: none; padding-left: 0 !important; border-left: 1px solid var(--line-2); margin-left: 6px !important; }
+  .timeline li { position: relative; padding-left: 18px !important; }
+  .timeline li::before { content: ""; position: absolute; left: -5px; top: .62em; width: 9px; height: 9px; border-radius: 50%; background: var(--card); box-shadow: inset 0 0 0 2px var(--lapis); }
+  .timeline b { font: 600 14px var(--ui); color: var(--lapis); margin-right: 8px; }
+  .note { display: flex; gap: 10px; margin-top: 14px; padding: 11px 13px; border-radius: 12px; font: 400 14.5px/1.5 var(--ui); animation: fade .3s ease both; }
+  .note b { display: block; font-size: 12px; font-weight: 600; letter-spacing: .02em; }
+  .note.unsure { background: color-mix(in srgb, var(--warn) 9%, transparent); color: var(--ink-2); }
+  .note.unsure svg, .note.unsure b { color: var(--warn); }
+  .note.fresh { background: var(--lapis-soft); color: var(--ink-2); }
+  .note.fresh svg, .note.fresh b { color: var(--lapis); }
+  .pill { display: inline-flex; align-items: center; margin: 0 2px; padding: 1px 7px; border-radius: 6px; background: var(--soft); color: var(--muted); font: 500 11.5px/1.6 var(--ui); text-decoration: none; vertical-align: 2px; white-space: nowrap; border: 1px solid var(--line); }
+  .pill:hover { background: var(--lapis); color: var(--on-lapis); border-color: var(--lapis); }
+  .glyph { font-family: var(--cun); font-size: .8em; color: var(--lapis); opacity: .8; letter-spacing: .03em; }
+  .scribe { margin: 12px 0 0; min-height: 1.6em; }
+  .portal { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--line-2); background: var(--card); text-decoration: none; box-shadow: var(--shadow); animation: fade .3s ease both; font: 400 15px var(--ui); }
+  .portal .fav { width: 36px; height: 36px; border-radius: 10px; font-size: 15px; }
+  .portal strong { display: block; font-size: 16px; }
+  .portal small { color: var(--muted); }
+  .portal .go { margin-left: auto; padding: 7px 13px; border-radius: 999px; background: var(--lapis); color: var(--on-lapis); font-size: 13px; font-weight: 500; white-space: nowrap; }
+
+  .acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 20px; padding-top: 4px; }
+  .act { display: inline-flex; align-items: center; gap: 6px; padding: 6px 9px; border: 0; border-radius: 8px; background: none; color: var(--muted); cursor: pointer; font-size: 13px; }
+  .act:hover { background: var(--soft); color: var(--ink); }
+  .act.srcs { margin-left: 4px; padding: 4px 10px 4px 6px; background: var(--soft); border-radius: 999px; }
+  .conf { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .conf i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .conf.high { color: var(--ok); background: color-mix(in srgb, var(--ok) 11%, transparent); }
+  .conf.medium { color: var(--warn); background: color-mix(in srgb, var(--warn) 11%, transparent); }
+  .conf.low { color: var(--low); background: color-mix(in srgb, var(--low) 11%, transparent); }
+
+  .related { margin-top: 30px; }
+  .related h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font: 500 15px var(--ui); }
+  .rel { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 2px; border: 0; border-top: 1px solid var(--line); background: none; text-align: left; cursor: pointer; font: 500 15px var(--ui); color: var(--ink); animation: fade .3s ease both; }
+  .rel:hover { color: var(--lapis); }
+  .rel .arr { color: var(--faint); }
+  .rel .plus { margin-left: auto; color: var(--faint); font-size: 18px; }
+  .topics { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+  .topics button { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .topics button:hover { border-color: var(--lapis); color: var(--lapis); }
+  .tablet { display: flex; align-items: center; gap: 10px; margin-top: 14px; padding: 9px 12px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ok) 35%, transparent); background: color-mix(in srgb, var(--ok) 7%, transparent); cursor: pointer; text-align: left; width: 100%; font-size: 14px; }
+  .tablet .fav { background: var(--ok); font-family: var(--cun); width: 22px; height: 22px; font-size: 12px; }
+  .tablet small { color: var(--ok); font-weight: 500; }
+  .err { margin-top: 18px; padding: 13px 15px; border-radius: 12px; background: color-mix(in srgb, var(--low) 9%, transparent); color: var(--ink-2); line-height: 1.5; }
+
+  /* Sources tab */
+  .slist { display: grid; gap: 8px; }
+  .sitem { display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding: 13px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); text-decoration: none; min-width: 0; }
+  .sitem:hover { border-color: var(--line-2); }
+  .sitem .fav { width: 28px; height: 28px; border-radius: 8px; font-size: 12px; }
+  .sitem strong { font-weight: 500; }
+  .sitem .ty { margin-left: 8px; font-size: 11px; color: var(--muted); padding: 1px 7px; border-radius: 999px; background: var(--soft); }
+  .sitem p { margin: 3px 0 0; color: var(--muted); font-size: 14px; }
+  .sitem .u { color: var(--faint); font: 12px var(--mono); overflow-wrap: anywhere; }
+  .live { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .live a { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); text-decoration: none; font-size: 13px; color: var(--ink-2); }
+  .live a:hover { border-color: var(--lapis); color: var(--lapis); }
+  .how { margin-top: 26px; padding: 14px 16px; border-radius: 12px; background: var(--soft); color: var(--muted); font-size: 13.5px; line-height: 1.55; }
+  .how b { color: var(--ink-2); }
+
+  /* Pinned ask */
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; padding: 18px 16px calc(14px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(0deg, var(--bg) 62%, transparent); }
+  @media (min-width: 920px) { .dock { left: 232px; } }
+  .dock .ask { max-width: 728px; margin: 0 auto; border-radius: 16px; }
+  .dock textarea { min-height: 48px; padding: 13px 16px 2px; font-size: 16px; }
+
+  /* Record */
+  .record { position: fixed; inset: 0; z-index: 30; display: grid; place-items: start center; overflow-y: auto; padding: 48px 16px; background: rgba(10,12,14,.45); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  .record article { position: relative; width: min(700px, 100%); padding: 26px; border-radius: 18px; background: var(--card); box-shadow: var(--shadow), 0 0 0 1px var(--line); animation: fade .25s ease both; }
+  .record h1 { margin: 8px 0 4px; font: 600 30px/1.15 var(--ui); letter-spacing: -.02em; }
+  .record .body { font: 400 17px/1.65 var(--serif); color: var(--ink-2); white-space: pre-wrap; }
+  .record .close { position: absolute; top: 14px; right: 14px; }
+  .claims { margin: 0; padding: 0; list-style: none; }
+  .claims li { padding: 11px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .claims a { color: var(--lapis); font-size: 13px; overflow-wrap: anywhere; }
+  .claims span { display: block; color: var(--faint); font-size: 12px; }
+
+  @media (max-width: 640px) {
+    .srcrow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .srcrow .scard:nth-child(n+4):not(.more) { display: none; }
+    .cards { grid-template-columns: minmax(0, 1fr); }
+    .answer { font-size: 17px; }
+    .focus button span.lbl { display: none; }
+  }
+
+  /* Google-style pieces */
+  .instant { margin-top: 18px; padding: 18px 20px; border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1px var(--line-2), var(--shadow); animation: fade .3s ease both; }
+  .instant .k { color: var(--muted); font: 500 13px var(--ui); }
+  .instant .big { margin-top: 4px; font: 500 clamp(30px, 6vw, 44px)/1.1 var(--ui); letter-spacing: -.02em; color: var(--ink); overflow-wrap: anywhere; }
+  .instant .small { margin-top: 6px; color: var(--muted); font-size: 14px; }
+  .webres { margin-top: 30px; }
+  .webres h3, .panel h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font: 500 15px var(--ui); }
+  .wr { display: block; padding: 14px 0; border-top: 1px solid var(--line); text-decoration: none; animation: fade .3s ease both; }
+  .wr .crumb { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .wr .crumb .fav { width: 26px; height: 26px; border-radius: 50%; font-size: 11px; }
+  .wr .site { display: block; font-size: 14px; color: var(--ink); line-height: 1.2; }
+  .wr .url { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wr .tt { display: block; margin-top: 6px; font: 500 19px/1.3 var(--ui); color: var(--lapis); }
+  .wr:hover .tt { text-decoration: underline; text-underline-offset: 3px; }
+  .wr p { margin: 4px 0 0; color: var(--ink-2); font-size: 14.5px; line-height: 1.55; }
+  .more-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .more-btn:hover { border-color: var(--lapis); color: var(--lapis); }
+  .tview { width: min(1180px, 100%); margin: 0 auto; padding: 8px 16px 190px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; }
+  .tview .thread { width: 100%; max-width: 760px; margin: 0; padding: 0; }
+  .panel { display: none; }
+  @media (min-width: 1240px) {
+    .tview { grid-template-columns: minmax(0, 728px) minmax(0, 340px); justify-content: center; }
+    .panel { display: block; position: sticky; top: 70px; align-self: start; margin-top: 64px; }
+    .panel:empty { display: none; }
+    .turn.main .answer .tbl.facts { display: none; }
+  }
+  .kp { padding: 18px; border-radius: 16px; background: var(--card); box-shadow: 0 0 0 1px var(--line), var(--shadow); animation: fade .4s ease both; }
+  .kp h2 { margin: 0; font: 600 24px/1.2 var(--ui); letter-spacing: -.02em; }
+  .kp .sub { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+  .kp .open { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; padding: 7px 13px; border-radius: 999px; background: var(--lapis); color: var(--on-lapis); text-decoration: none; font-size: 13px; font-weight: 500; }
+  .kp .desc { margin: 12px 0 0; font: 400 15px/1.6 var(--serif); color: var(--ink-2); }
+  .kp dl { margin: 14px 0 0; display: grid; gap: 7px; font-size: 14px; }
+  .kp dl div { display: grid; grid-template-columns: 112px 1fr; gap: 10px; }
+  .kp dt { color: var(--muted); font-weight: 500; }
+  .kp dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+  .kp h4 { margin: 18px 0 8px; font: 500 13px var(--ui); color: var(--muted); }
+  .kp .also { display: flex; flex-wrap: wrap; gap: 6px; }
+  .kp .also button { padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .kp .also button:hover { border-color: var(--lapis); color: var(--lapis); }
+
+  /* Floating library: books drifting behind everything */
+  .library { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; transition: opacity .8s ease; }
+  body:not(.at-home) .library { opacity: .55; }
+  .book-f { position: absolute; left: var(--x); top: var(--y); width: var(--w); color: var(--c); opacity: var(--o); transform: rotate(var(--r)); animation: drift var(--d) ease-in-out var(--delay) infinite alternate; filter: drop-shadow(0 6px 10px rgba(0,0,0,.12)); }
+  .book-f svg { display: block; width: 100%; height: auto; }
+  .book-f.open .leaf { transform-origin: 50% 100%; animation: leaf calc(var(--d) / 2.4) ease-in-out var(--delay) infinite alternate; }
+  .mote { position: absolute; left: var(--x); bottom: -10px; width: 3px; height: 3px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--gold) 50%, transparent); opacity: 0; animation: rise var(--d) linear var(--delay) infinite; }
+  body.writing .book-f { animation-duration: calc(var(--d) / 3.2); }
+  body.writing .mote { animation-duration: calc(var(--d) / 2.6); }
+  @keyframes drift { from { transform: translate3d(0,0,0) rotate(var(--r)); } to { transform: translate3d(var(--dx), -28px, 0) rotate(calc(var(--r) + 8deg)); } }
+  @keyframes leaf { to { transform: scaleY(.8) skewX(-7deg); } }
+  @keyframes rise { 10% { opacity: .9; } 80% { opacity: .4; } to { opacity: 0; transform: translate3d(var(--dx), -100vh, 0); } }
+  .shell { position: relative; z-index: 1; }
+  .side { background: color-mix(in srgb, var(--side) 92%, transparent); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+
+  /* The Sage: Nabu as a living presence */
+  .sage { position: relative; width: var(--size, 132px); aspect-ratio: 1; flex: none; }
+  .sage svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .sage .ring { transform-origin: 100px 100px; animation: turn 40s linear infinite; }
+  .sage .ring2 { transform-origin: 100px 100px; animation: turn 26s linear infinite reverse; }
+  .sage .ring text { font: 15px var(--cun); fill: var(--lapis); opacity: .75; letter-spacing: 3px; }
+  .sage .ring2 circle { fill: none; stroke: var(--gold); stroke-width: 1; stroke-dasharray: 2 7; opacity: .7; }
+  .sage .halo { fill: var(--lapis); opacity: .12; transform-origin: 100px 100px; animation: halo 4s ease-in-out infinite; }
+  .sage .orb-g { animation: float 5s ease-in-out infinite; }
+  .sage .eye { transform-origin: 100px 100px; animation: blink 6s ease-in-out infinite; }
+  .sage .pupil-g { transition: transform .25s ease-out; }
+  .sage .stop-a { stop-color: var(--orb-a); } .sage .stop-b { stop-color: var(--lapis); } .sage .stop-c { stop-color: var(--orb-c); }
+  .sage[data-state="listening"] .ring { animation-duration: 14s; }
+  .sage[data-state="listening"] .halo { opacity: .2; }
+  .sage[data-state="thinking"] .ring { animation-duration: 4s; }
+  .sage[data-state="thinking"] .ring2 { animation-duration: 3s; }
+  .sage[data-state="thinking"] .halo { animation-duration: 1.1s; opacity: .26; }
+  .sage[data-state="thinking"] .ring text { opacity: 1; }
+  @keyframes turn { to { transform: rotate(360deg); } }
+  @keyframes halo { 50% { transform: scale(1.12); opacity: .2; } }
+  @keyframes float { 50% { transform: translateY(-4px); } }
+  @keyframes blink { 0%, 46%, 50%, 100% { transform: scaleY(1); } 48% { transform: scaleY(.08); } }
+  .sage-say { margin: 0; max-width: 34ch; text-align: center; color: var(--ink-2); font: italic 400 18px/1.45 var(--serif); min-height: 1.45em; text-wrap: balance; }
+  .voice { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .voice .sage { --size: 46px; }
+  .voice p { margin: 0; font: italic 400 16px/1.45 var(--serif); color: var(--ink-2); }
+  .voice p b { font: 600 13px var(--ui); font-style: normal; color: var(--lapis); margin-right: 6px; }
+  .scard { animation: summon .7s cubic-bezier(.2,.9,.25,1.12) both !important; }
+  @keyframes summon { 0% { opacity: 0; transform: translate3d(60px, -50px, 0) rotate(-10deg) scale(.85); filter: blur(4px); } 65% { opacity: 1; filter: none; } 100% { opacity: 1; transform: none; } }
+  .answer.arrive { animation: opening .6s cubic-bezier(.2,.8,.2,1) both; transform-origin: left top; }
+  @keyframes opening { from { opacity: 0; transform: perspective(900px) rotateY(-14deg) translateY(8px); } to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .constellation, .mote { display: none; }
+  }
+</style>
+
+<div class="library" id="library" aria-hidden="true"></div>
+<div class="shell">
+  <aside class="side">
+    <button class="logo" id="side-logo" type="button"><span class="sigil">𒀭</span><b>nabu</b></button>
+    <button class="new" id="new" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New search<kbd>/</kbd>
+    </button>
+    <div style="height: 8px"></div>
+    <button class="nav" id="nav-home" type="button" aria-current="page">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 11 12 4l9 7v9H3z"/></svg>Home
+    </button>
+    <button class="nav" id="nav-tablet" type="button">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/><path d="M9 8h6M9 12h4"/></svg>The Tablet
+    </button>
+    <h3>Library</h3>
+    <div class="recent" id="recent"></div>
+    <p class="side-foot">Answers first, sources beside them. Nothing sponsored, nothing tracked.</p>
+  </aside>
+
+  <div class="main">
+    <header class="mtop">
+      <button class="logo" id="top-logo" type="button"><span class="sigil">𒀭</span><b>nabu</b></button>
+      <span></span>
+      <button class="icon-btn" id="top-new" type="button" hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>New
+      </button>
+    </header>
+
+    <section class="home" id="home">
+      <div class="constellation" id="constellation" aria-hidden="true"></div>
+      <div class="home-inner">
+        <div class="sage" id="home-sage" data-state="idle"><svg viewBox="0 0 200 200" aria-hidden="true">
+  <defs>
+    <radialGradient id="hs-orb" cx="38%" cy="32%" r="70%"><stop class="stop-a" offset="0"/><stop class="stop-b" offset=".45"/><stop class="stop-c" offset="1"/></radialGradient>
+    <radialGradient id="hs-iris" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff6d8"/><stop offset=".55" stop-color="#e7b54f"/><stop offset="1" stop-color="#8a5a12"/></radialGradient>
+    <path id="hs-path" d="M100,100 m-82,0 a82,82 0 1,1 164,0 a82,82 0 1,1 -164,0"/>
+  </defs>
+  <circle class="halo" cx="100" cy="100" r="70"/>
+  <g class="ring"><text><textPath href="#hs-path">𒀭 𒀸 𒁀 𒁹 𒂗 𒃲 𒄿 𒅆 𒆠 𒇻 𒈨 𒉡 𒊩 𒋗 𒌋 𒌑 𒍣 𒀀 𒁲 𒂊</textPath></text></g>
+  <g class="ring2"><circle cx="100" cy="100" r="64"/></g>
+  <g class="orb-g">
+    <circle cx="100" cy="100" r="46" fill="url(#hs-orb)"/>
+    <ellipse cx="86" cy="80" rx="16" ry="9" fill="#fff" opacity=".35"/>
+    <g class="eye">
+      <ellipse cx="100" cy="102" rx="24" ry="15" fill="#0b1426" opacity=".85"/>
+      <g class="pupil-g"><circle cx="100" cy="102" r="11" fill="url(#hs-iris)"/><circle cx="100" cy="102" r="4.5" fill="#0b1426"/><circle cx="96" cy="98" r="2" fill="#fff"/></g>
+    </g>
+  </g>
+</svg></div>
+        <p class="sage-say" id="home-say">I am Nabu, keeper of the tablet. Ask, and the books will come to you.</p>
+        <div class="wordmark"><span class="sigil">𒀭</span><h1>nabu</h1></div>
+        <form class="ask" id="home-form" autocomplete="off">
+          <textarea id="home-q" rows="1" placeholder="Ask anything…" aria-label="Ask anything" aria-controls="home-suggest"></textarea>
+          <div class="ask-tools">
+            <div class="focus" id="home-focus"></div>
+            <button class="send" type="submit" aria-label="Search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+          </div>
+          <div class="suggest" id="home-suggest" role="listbox" hidden></div>
+        </form>
+        <div class="cards" id="cards"></div>
+        <div class="home-lib" id="home-lib" hidden><h3>Library</h3><div class="recent" id="recent-m"></div></div>
+      </div>
+    </section>
+
+    <div class="tview" id="tview" hidden>
+    <section class="thread" id="thread">
+      <nav class="tabs" role="tablist">
+        <button class="tab" role="tab" type="button" data-tab="answer" aria-selected="true">
+          <span class="glyph" style="opacity: 1">𒀭</span>Answer
+        </button>
+        <button class="tab" role="tab" type="button" data-tab="sources" aria-selected="false">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Links <span class="n" id="src-count"></span>
+        </button>
+      </nav>
+      <div id="pane-answer"></div>
+      <div id="pane-sources" hidden>
+        <div class="slist" id="slist"></div>
+        <div class="label">Search the live web</div>
+        <div class="live" id="live"></div>
+        <div class="label">Web results</div>
+        <div id="links-web"></div>
+        <div class="how" id="how"><b>How Nabu answers.</b> Claude writes each answer from what it learned in training; this view cannot read the live web. Sources are places to check, chosen by the model, not proof of where each sentence came from. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged in the answer. No ads, no sponsored results, no tracking.</div>
+      </div>
+    </section>
+    <aside class="panel" id="panel" aria-label="Knowledge panel"></aside>
+    </div>
+  </div>
+</div>
+
+<div class="dock" id="dock" hidden>
+  <form class="ask" id="dock-form" autocomplete="off">
+    <textarea id="dock-q" rows="1" placeholder="Ask a follow-up…" aria-label="Ask a follow-up"></textarea>
+    <div class="ask-tools">
+      <div class="focus" id="dock-focus"></div>
+      <button class="send" type="submit" aria-label="Ask"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+    </div>
+  </form>
+</div>
+
+<div class="record" id="record" hidden>
+  <article role="dialog" aria-modal="true" aria-labelledby="rec-title">
+    <button class="icon-btn close" id="rec-close" type="button" aria-label="Close">Close</button>
+    <span class="conf high"><i></i>On the tablet · <span id="rec-status"></span></span>
+    <h1 id="rec-title"></h1>
+    <p id="rec-summary" style="color: var(--muted); margin: 0 0 14px"></p>
+    <div class="body" id="rec-body"></div>
+    <div class="label">Claims and sources</div>
+    <ol class="claims" id="rec-claims"></ol>
+  </article>
+</div>
+
+<script>
+(function () {
+  var SEED = {"entries": [{"slug": "nabu", "title": "Nabu", "kind": "project", "summary": "A local cited encyclopedia and search index. Humans search the tablet. An agent uses the same store through the API. A line without a source stays a draft.", "body": "Nabu is a small search engine over a structured knowledge store. It is not a copy of the web, and it is not a fork of Wikipedia. Version 0.3 is one SQLite file. Search is FTS5. There is no crawler and no account system. A sage answers from the entries and cites them. When the tablet is thin, Nabu reads one Wikipedia summary through the official API and keeps it as a draft.\n\nTwo doors read that file. A person uses the search box. An agent calls GET /api/search, GET /api/e/:slug, and POST /api/propose. If a proposal asks to be verified and any claim lacks a source URL or a retrieval date, the text is kept and the status is draft. The response says why.\n\nThe name is the Babylonian god of writing and scribes. He keeps the tablet. He does not invent the fate.", "status": "verified", "claims": [{"text": "Nabu v0.3 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.", "url": "https://raw.githubusercontent.com/T0PK1DK/nabu/main/README.md", "retrieved": "2026-10-10"}, {"text": "Nabu is the patron deity of Borsippa, god of wisdom and writing, and the minister and scribe of Marduk.", "url": "https://oracc.museum.upenn.edu/amgg/Listofdeities/Nabu/", "retrieved": "2026-10-10"}]}, {"slug": "nabu-god", "title": "Nabu (god)", "kind": "deity", "summary": "Babylonian god of writing, scribes, and wisdom. Patron of Borsippa. Minister and scribe of Marduk. The Bible calls him Nebo.", "body": "Nabu, Akkadian Nabû, is the god this index is named for. The Oracc entry calls him patron deity of Borsippa and the minister and scribe of Marduk. Writing was the office: he took it over from the goddess Nidaba, and scribes invoked him in the colophons of texts. From writing he became lord of wisdom, a trait the same entry traces to his ancestor Enki/Ea.\n\nOnce a year the scribal duty had a date. On the 11th of Nisannu, at the end of the akitu festival, he was said to inscribe the fate of the land on the Tablet of Destinies, in accordance with Enūma eliš. His temple at Borsippa was Ezida. The Hebrew Bible names him Nebo.\n\nThis page is a short original entry. It does not copy a Wikipedia article. The claims point at the Oracc pages they were read from, and at the day they were read.", "status": "verified", "claims": [{"text": "Nabu is the patron deity of Borsippa as well as the minister and scribe of Marduk.", "url": "https://oracc.museum.upenn.edu/amgg/Listofdeities/Nabu/", "retrieved": "2026-10-10"}, {"text": "On the 11th day of Nisannu, at the end of the akitu festival, Nabu inscribed the fate of the land on the Tablet of Destinies, in accordance with Enūma eliš.", "url": "https://oracc.museum.upenn.edu/amgg/Listofdeities/Nabu/", "retrieved": "2026-10-10"}, {"text": "From god of writing, Nabu became lord of wisdom, inheriting a characteristic of Enki/Ea. He appears in the Bible as Nebo.", "url": "https://oracc.museum.upenn.edu/amgg/Listofdeities/Nabu/", "retrieved": "2026-10-10"}, {"text": "Ezida was the temple of Nabû, the god of writing and the son of the Babylonian supreme deity Marduk.", "url": "https://oracc.museum.upenn.edu/borsippa", "retrieved": "2026-10-10"}]}, {"slug": "tablet-of-destinies", "title": "Tablet of Destinies", "kind": "object", "summary": "In the account used here, the tablet on which Nabu inscribed the fate of the land at the end of the akitu. Not the same thing as the Dais of Destinies.", "body": "The Tablet of Destinies, in the Oracc entry for Nabu, is the document he wrote at the close of the New Year. On the 11th of Nisannu, after the fate of the land had been settled with Marduk, Nabu inscribed it on that tablet, in accordance with the creation myth Enūma eliš.\n\nA second object shares the word and should not be folded into the first. At Borsippa, inside Ezida, Nabû stopped at the Dais of Destinies, Akkadian parak šīmāti, when he travelled between Borsippa and Babylon during the akitu. A dais is a seat. A tablet is a record.\n\nNabu the index borrows the job of the tablet, not the theology. A verified claim is a line that made it onto the record. A draft has not.", "status": "verified", "claims": [{"text": "On the 11th of Nisannu, Nabu inscribed the fate of the land on the Tablet of Destinies, in accordance with Enūma eliš.", "url": "https://oracc.museum.upenn.edu/amgg/Listofdeities/Nabu/", "retrieved": "2026-10-10"}, {"text": "During the akitu, when Nabû travelled to and from Babylon, he stopped at the Dais of Destinies (parak šīmāti) near the gate Kaumuša in Ezida at Borsippa.", "url": "https://oracc.museum.upenn.edu/btmao/Borsippa/TemplesandZiggurat/Ezida/RoomsandGates/DaisofDestinies/", "retrieved": "2026-10-10"}]}, {"slug": "grokipedia", "title": "Grokipedia", "kind": "project", "summary": "Encyclopedia launched by xAI on 27 October 2025. Visitors cannot directly edit pages. Some pages say they were adapted from Wikipedia under CC BY-SA.", "body": "Grokipedia is an encyclopedia launched by xAI on 27 October 2025. Lawfare later described the launch set as roughly 885,000 machine-generated articles. It has a search box. It is not a crawl of the open web, and it is not this project.\n\nAt launch, a reporter at The Verge could not directly edit a page the way a Wikipedia editor can. Some pages carried a notice that the content was adapted from Wikipedia under the Creative Commons Attribution-ShareAlike 4.0 license.\n\nNabu does not copy those pages. It has no public API to read from. A claim about Grokipedia on this tablet points at a news article, with the day it was read.", "status": "verified", "claims": [{"text": "Grokipedia launched on 27 October 2025 with roughly 885,000 machine-generated articles.", "url": "https://www.lawfaremedia.org/article/grokipedia-stopped-reviewing-edits-in-april.-it-didn-t-tell-anyone", "retrieved": "2026-10-10"}, {"text": "At launch, visitors could not directly edit Grokipedia pages the way Wikipedia allows.", "url": "https://www.theverge.com/news/807686/elon-musk-grokipedia-launch-wikipedia-xai-copied", "retrieved": "2026-10-10"}, {"text": "Some Grokipedia pages state that their content is adapted from Wikipedia under the Creative Commons Attribution-ShareAlike 4.0 license.", "url": "https://www.theverge.com/news/807686/elon-musk-grokipedia-launch-wikipedia-xai-copied", "retrieved": "2026-10-10"}]}, {"slug": "fts5", "title": "FTS5", "kind": "tool", "summary": "SQLite’s full-text search extension. Nabu v0.3 uses it as the only ranker. No embeddings.", "body": "FTS5 is the full-text search module that ships with SQLite. It is a virtual table. An application stores text in it and asks MATCH. The module returns the documents that contain the terms, and bm25 ranks them.\n\nNabu indexes title, summary, and body in one FTS5 table. An empty query does not search. It lists the tablet. A query with words is ranked by bm25 and nothing else. There is no vector index in this version.", "status": "verified", "claims": [{"text": "FTS5 is an SQLite virtual table module that provides full-text search to database applications.", "url": "https://www.sqlite.org/fts5.html", "retrieved": "2026-10-10"}]}, {"slug": "actually-worth-it", "title": "Actually Worth It", "kind": "site", "summary": "Product-comparison site at actuallyworthit.com. It discloses Amazon Associates tag actuallywo08c-20 and says it is not a store.", "body": "Actually Worth It publishes product comparisons at actuallyworthit.com. The site says it earns from qualifying Amazon purchases and that its buy buttons use the Associates tag actuallywo08c-20. It also says it is not Amazon and not a store.\n\nOn this tablet the entry is only that public description. A later comparison can be proposed as its own entry. Each claim still needs a source URL and a retrieval date, or the page stays a draft.", "status": "verified", "claims": [{"text": "Actually Worth It is published at actuallyworthit.com, says it earns as an Amazon Associate, and states that it is not Amazon and not a store.", "url": "https://actuallyworthit.com/", "retrieved": "2026-10-10"}, {"text": "The site states that its buy buttons use Amazon Associates tag actuallywo08c-20.", "url": "https://actuallyworthit.com/", "retrieved": "2026-10-10"}]}]};
+  var KEY = "nabu.library.v2";
+  var GLYPHS = Array.from("𒀭𒀸𒁀𒁹𒂗𒃲𒄿𒅆𒆠𒇻𒈨𒉡𒊩𒋗𒌋𒌑𒍣𒐕𒐖𒐗𒀀𒁲𒂊𒆳");
+  var DOMAIN_RE = /^(?:https?:\/\/)?((?:[a-z0-9-]+\.)+[a-z]{2,})(\/\S*)?$/i;
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; };
+  var svg = function (html) { var s = el("span"); s.innerHTML = html; return s.firstChild; };
+  var glyph = function () { return GLYPHS[Math.floor(Math.random() * GLYPHS.length)]; };
+  var hash = function (s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); };
+  var store = { get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+                set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* this visit only */ } } };
+  var samplePromise = window.claude && window.claude.use ? window.claude.use("sample") : Promise.resolve(null);
+  // Outside claude.ai (Cloudflare Worker or python3 app.py), answers stream from the live backend at /api/answer.
+  var LIVE = !(window.claude && window.claude.use) && /^https?:$/.test(location.protocol);
+  function backend(meta, onText, signal) {
+    return fetch("api/answer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(meta), signal: signal }).then(function (res) {
+      if (!res.ok) throw { code: res.status === 429 ? "rate_limited" : "failed" };
+      if (!res.body || !res.body.getReader) return res.text().then(function (t) { onText({ text: t }); return { text: t }; });
+      var reader = res.body.getReader(), dec = new TextDecoder(), text = "";
+      return (function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) { text += dec.decode(); return { text: text }; }
+          text += dec.decode(r.value, { stream: true }); onText({ text: text }); return pump();
+        });
+      })();
+    });
+  }
+  var shelf = store.get(KEY, []);
+
+  var I = {
+    all: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+    know: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z"/></svg>',
+    do: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+    compare: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3v18M16 3v18M3 8h5M16 16h5"/></svg>',
+    copy: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+    redo: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+    related: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h10M4 18h7"/></svg>',
+    src: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/></svg>',
+    q: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6M12 17h.01"/></svg>',
+    fresh: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>',
+    clock: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>'
+  };
+  var FOCUS = [["all", "All"], ["know", "Encyclopedia"], ["do", "How-to"], ["compare", "Compare"]];
+  var focus = "all";
+  var CARDS = [
+    { t: "How do grimoires work in Black Clover", s: "Worlds of fiction" },
+    { t: "Why is the sky blue at noon but red at sunset", s: "Science, explained" },
+    { t: "How to start a YouTube channel", s: "Step by step" },
+    { t: "Cloudflare Workers AI vs OpenAI API", s: "Side by side" },
+    { t: "72 f to c", s: "Instant answers" },
+    { t: "youtube", s: "Go to a site" }
+  ];
+
+  function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch (e) { return ""; } }
+  function shortHost(url) { var h = hostOf(url).split("."); return h.length > 2 ? h[h.length - 2] : h[0]; }
+  function clean(s) { return s.replace(/\*\*|__|`/g, "").replace(/^[-•]\s+/, "").trim(); }
+  function glyphLine(n) { var s = ""; for (var i = 0; i < n; i++) s += i % 6 === 5 ? " " : glyph(); return s; }
+
+  // Constellation on home
+  (function () {
+    var c = $("constellation"), seed = 5;
+    function rand() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var i = 0; i < 26; i++) {
+      var s = el("span", null, GLYPHS[i % GLYPHS.length]);
+      var x = rand() * 100; if (x > 30 && x < 70) x = rand() < .5 ? x - 30 : x + 30;
+      s.style.cssText = "--x:" + x.toFixed(1) + "%;--y:" + (rand() * 92).toFixed(1) + "%;--s:" + Math.round(14 + rand() * 18) + "px;--o:" + (0.08 + rand() * 0.16).toFixed(2) +
+        ";--d:" + (6 + rand() * 8).toFixed(1) + "s;--delay:-" + (rand() * 10).toFixed(1) + "s";
+      c.appendChild(s);
+    }
+  })();
+
+
+  // Floating books
+  var CLOSED = '<svg viewBox="0 0 40 52"><rect x="4" y="2" width="32" height="48" rx="2" fill="currentColor"/><rect x="4" y="2" width="5" height="48" fill="#000" opacity=".22"/><rect x="34" y="5" width="3" height="42" fill="#fff" opacity=".45"/><path d="M15 16 h14 M15 21 h10" stroke="#fff" stroke-width="1.6" opacity=".45"/></svg>';
+  var OPEN = '<svg viewBox="0 0 64 40"><path d="M32 8 C24 2 12 2 3 5 V36 C12 33 24 33 32 38 Z" fill="currentColor"/><path class="leaf" d="M32 8 C40 2 52 2 61 5 V36 C52 33 40 33 32 38 Z" fill="currentColor" opacity=".8"/><path d="M9 12 h16 M9 17 h14 M9 22 h16 M39 12 h16 M39 17 h12" stroke="#fff" stroke-width="1.2" opacity=".5"/></svg>';
+  (function () {
+    var lib = $("library"), colors = ["#2b5aa3", "#a97d26", "#6b4a8f", "#3d6e5a", "#8a3b2e", "#c49a4a"], seed = 9;
+    function rand() { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+    for (var i = 0; i < 18; i++) {
+      var open = i % 3 === 0, b = el("div", "book-f" + (open ? " open" : ""));
+      b.innerHTML = open ? OPEN : CLOSED;
+      var x = i % 2 ? 74 + rand() * 24 : rand() * 26;
+      b.style.cssText = "--x:" + x.toFixed(1) + "vw;--y:" + (rand() * 90).toFixed(1) + "vh;--w:" + Math.round((open ? 46 : 26) + rand() * 24) + "px;--c:" + colors[i % colors.length] +
+        ";--o:" + (0.16 + rand() * 0.2).toFixed(2) + ";--r:" + Math.round(rand() * 50 - 25) + "deg;--d:" + (7 + rand() * 7).toFixed(1) + "s;--delay:-" + (rand() * 8).toFixed(1) + "s;--dx:" + Math.round(rand() * 34 - 17) + "px";
+      lib.appendChild(b);
+    }
+    if (reduced) return;
+    for (var j = 0; j < 16; j++) {
+      var m = el("div", "mote");
+      m.style.cssText = "--x:" + (rand() * 100).toFixed(1) + "vw;--d:" + (12 + rand() * 12).toFixed(1) + "s;--delay:-" + (rand() * 20).toFixed(1) + "s;--dx:" + Math.round(rand() * 80 - 40) + "px";
+      lib.appendChild(m);
+    }
+  })();
+
+  // The Sage
+  var SAGE_TPL = $("home-sage").innerHTML, sageCount = 0;
+  function makeSage(size) {
+    var d = el("div", "sage"); d.dataset.state = "thinking"; d.style.setProperty("--size", size + "px");
+    var id = "s" + (++sageCount) + "-"; d.innerHTML = SAGE_TPL.split("hs-").join(id); return d;
+  }
+  function setSage(node, state) { if (node) node.dataset.state = state; }
+  var GREET = ["I am Nabu, keeper of the tablet. Ask, and the books will come to you.", "Every book in the world is on these shelves. Which one do you need?", "Speak your question. I will read what is written."];
+  $("home-say").textContent = GREET[Math.floor(Math.random() * GREET.length)];
+  $("home-q").addEventListener("input", function () {
+    var v = $("home-q").value.trim();
+    setSage($("home-sage"), v ? "listening" : "idle");
+    $("home-say").textContent = v ? "I'm listening…" : GREET[0];
+  });
+  if (!reduced) document.addEventListener("pointermove", function (ev) {
+    document.querySelectorAll(".sage .pupil-g").forEach(function (p) {
+      var r = p.ownerSVGElement.getBoundingClientRect(); if (!r.width) return;
+      var dx = ev.clientX - (r.left + r.width / 2), dy = ev.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 300);
+      p.setAttribute("transform", "translate(" + (dx / d * 9 * k).toFixed(1) + " " + (dy / d * 5 * k).toFixed(1) + ")");
+    });
+  });
+
+  function renderFocus(box) {
+    box.replaceChildren();
+    FOCUS.forEach(function (f) {
+      var b = el("button"); b.type = "button"; b.setAttribute("aria-pressed", String(focus === f[0])); b.title = f[1];
+      b.appendChild(svg(I[f[0]])); b.appendChild(el("span", "lbl", f[1]));
+      b.addEventListener("click", function () { focus = f[0]; renderFocus($("home-focus")); renderFocus($("dock-focus")); });
+      box.appendChild(b);
+    });
+  }
+  function renderLibrary() {
+    [$("recent"), $("recent-m")].forEach(function (box) {
+      box.replaceChildren();
+      shelf.slice(0, 14).forEach(function (s) { var b = el("button", null, s.title || s.q); b.type = "button"; b.title = s.q; b.addEventListener("click", function () { reopen(s); }); box.appendChild(b); });
+      if (!shelf.length) box.appendChild(el("p", "side-foot", "Searches you make are kept here."));
+    });
+    $("home-lib").hidden = !shelf.length;
+  }
+  function renderCards() {
+    var box = $("cards"); box.replaceChildren();
+    CARDS.forEach(function (c) {
+      var b = el("button", "tcard"); b.type = "button";
+      b.appendChild(el("span", "g", GLYPHS[hash(c.t) % GLYPHS.length]));
+      var t = el("span"); t.style.minWidth = "0"; t.appendChild(el("strong", null, c.s)); t.appendChild(el("small", null, c.t)); b.appendChild(t);
+      b.addEventListener("click", function () { go(c.t); }); box.appendChild(b);
+    });
+  }
+
+  // Textareas: grow, Enter submits
+  function wireBox(ta, form) {
+    function grow() { ta.style.height = "auto"; ta.style.height = Math.min(200, ta.scrollHeight) + "px"; }
+    ta.addEventListener("input", grow);
+    ta.addEventListener("keydown", function (ev) { if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { if (form._sugIdx >= 0) return; ev.preventDefault(); form.requestSubmit(); } });
+    return grow;
+  }
+
+  // Suggestions under the home box
+  function attachSuggest(input, box, form, submit) {
+    var items = []; form._sugIdx = -1;
+    function close() { box.hidden = true; form._sugIdx = -1; }
+    function render() {
+      var v = input.value.trim().toLowerCase(); box.replaceChildren(); items = []; var seen = {};
+      shelf.map(function (s) { return { t: s.title || s.q, q: s.q, k: "Library" }; })
+        .concat(SEED.entries.map(function (e) { return { t: e.title, q: e.title, k: "Tablet" }; }))
+        .concat(CARDS.map(function (c) { return { t: c.t, q: c.t, k: "Try" }; }))
+        .forEach(function (p) { var key = p.t.toLowerCase(); if (!seen[key] && v.length > 0 && key.indexOf(v) !== -1) { seen[key] = 1; items.push(p); } });
+      items = items.slice(0, 3);
+      if (v.length > 1 && items.length < 6) {
+        var raw = input.value.trim(), done = {};
+        items.forEach(function (it) { done[it.q.toLowerCase()] = 1; });
+        var pats = /^(how|what|why|who|when|where|is|can|does)/i.test(raw) ? [raw, raw + " explained", raw + " for beginners"]
+          : [raw, "what is " + raw, raw + " meaning", "how does " + raw + " work", raw + " vs ", "history of " + raw];
+        if (instant(raw)) pats.unshift(raw);
+        pats.forEach(function (p) { if (items.length < 6 && !done[p.toLowerCase()]) { done[p.toLowerCase()] = 1; items.push({ t: p.trim(), q: p.trim(), k: instant(p) ? "Instant" : "Search" }); } });
+      }
+      items = items.slice(0, 6); if (!items.length) return close();
+      items.forEach(function (p, i) {
+        var b = el("button"); b.type = "button"; b.setAttribute("role", "option"); b.setAttribute("aria-selected", "false");
+        b.appendChild(svg(p.k === "Library" ? I.clock : p.k === "Tablet" ? I.know : I.all)); b.appendChild(el("span", "t", p.t)); b.appendChild(el("span", "s", p.k));
+        b.addEventListener("mousedown", function (ev) { ev.preventDefault(); close(); submit(p.q); });
+        box.appendChild(b);
+      });
+      box.hidden = false;
+    }
+    input.addEventListener("input", render);
+    input.addEventListener("focus", render);
+    input.addEventListener("blur", function () { setTimeout(close, 120); });
+    input.addEventListener("keydown", function (ev) {
+      if (box.hidden) return;
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault(); form._sugIdx = (form._sugIdx + (ev.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+        [].forEach.call(box.children, function (c, i) { c.setAttribute("aria-selected", String(i === form._sugIdx)); });
+      } else if (ev.key === "Enter" && form._sugIdx >= 0) { ev.preventDefault(); var q = items[form._sugIdx].q; close(); submit(q); }
+      else if (ev.key === "Escape") close();
+    });
+    return close;
+  }
+
+
+  // Instant answers, computed here with no waiting: math, units, time.
+  function calc(expr) {
+    var src = expr.replace(/[×x]/g, "*").replace(/÷/g, "/").replace(/,/g, "").replace(/\s+/g, ""), i = 0;
+    if (!/^[\d.+\-*/()%^]+$/.test(src) || !/[+\-*/%^]/.test(src.replace(/^-/, ""))) return null;
+    function num() { var m = /^\d*\.?\d+(?:e[+-]?\d+)?/i.exec(src.slice(i)); if (!m) throw 0; i += m[0].length; return parseFloat(m[0]); }
+    function atom() { if (src[i] === "-") { i++; return -atom(); } if (src[i] === "(") { i++; var v = add(); if (src[i++] !== ")") throw 0; return v; } var n = num(); if (src[i] === "%") { i++; n /= 100; } return n; }
+    function pow() { var b = atom(); if (src[i] === "^") { i++; return Math.pow(b, pow()); } return b; }
+    function mul() { var v = pow(); while (src[i] === "*" || src[i] === "/") { var o = src[i++], r = pow(); v = o === "*" ? v * r : v / r; } return v; }
+    function add() { var v = mul(); while (src[i] === "+" || src[i] === "-") { var o = src[i++], r = mul(); v = o === "+" ? v + r : v - r; } return v; }
+    try { var out = add(); if (i !== src.length || !isFinite(out)) return null; return out; } catch (e) { return null; }
+  }
+  var UNITS = {
+    km: ["length", 1000], m: ["length", 1], cm: ["length", .01], mm: ["length", .001], mi: ["length", 1609.344], mile: ["length", 1609.344], miles: ["length", 1609.344], ft: ["length", .3048], feet: ["length", .3048], foot: ["length", .3048], in: ["length", .0254], inch: ["length", .0254], inches: ["length", .0254], yd: ["length", .9144], yards: ["length", .9144],
+    kg: ["mass", 1], g: ["mass", .001], lb: ["mass", .45359237], lbs: ["mass", .45359237], pound: ["mass", .45359237], pounds: ["mass", .45359237], oz: ["mass", .028349523], ounces: ["mass", .028349523],
+    l: ["volume", 1], liter: ["volume", 1], liters: ["volume", 1], ml: ["volume", .001], gal: ["volume", 3.785411784], gallon: ["volume", 3.785411784], gallons: ["volume", 3.785411784], cup: ["volume", .2365882365], cups: ["volume", .2365882365],
+    c: ["temp"], f: ["temp"], k: ["temp"], celsius: ["temp"], fahrenheit: ["temp"], kelvin: ["temp"]
+  };
+  function fmt(n) { var a = Math.abs(n); if (a !== 0 && (a < 1e-6 || a >= 1e15)) return n.toExponential(6).replace(/\.?0+e/, "e"); return n.toLocaleString("en-US", { maximumFractionDigits: a < 1 ? 8 : 6 }); }
+  function instant(q) {
+    var t = q.trim().toLowerCase().replace(/[?!]+$/, "").replace(/^(what is|what's|whats|calculate|compute|convert)\s+/, "");
+    var v = calc(t.replace(/=$/, ""));
+    if (v !== null) return { k: q.trim().replace(/[?]+$/, "") + " =", big: fmt(v), small: "Calculator", say: "That one I can do in my head." };
+    var m = /^(-?[\d.,]+)\s*°?\s*([a-z]+)\s+(?:to|in|into|as)\s+°?([a-z]+)$/.exec(t);
+    if (m && UNITS[m[2]] && UNITS[m[3]]) {
+      var x = parseFloat(m[1].replace(/,/g, "")), a = UNITS[m[2]], b = UNITS[m[3]], out;
+      if (a[0] !== b[0]) return null;
+      if (a[0] === "temp") {
+        var ab = function (u) { return u.charAt(0); }, from = ab(m[2]), to = ab(m[3]);
+        var kel = from === "c" ? x + 273.15 : from === "f" ? (x - 32) * 5 / 9 + 273.15 : x;
+        out = to === "c" ? kel - 273.15 : to === "f" ? (kel - 273.15) * 9 / 5 + 32 : kel;
+      } else out = x * a[1] / b[1];
+      var lab = function (u) { return a[0] === "temp" ? "°" + u.charAt(0).toUpperCase() : u; };
+      if (a[0] === "temp") out = Math.round(out * 10) / 10;
+      return { k: fmt(x) + " " + lab(m[2]) + " =", big: fmt(out) + " " + lab(m[3]), small: "Unit converter", say: "Measured and weighed. Here you are." };
+    }
+    if (/^(what time is it|time|current time|time now|what's the time)$/.test(t)) {
+      var d = new Date(); return { k: "Local time", big: d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }), small: d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" }), say: "The stars say it is this hour." };
+    }
+    if (/^(date|today|todays date|today's date|what day is it|what is the date|what's the date)$/.test(t)) {
+      var d2 = new Date(); return { k: "Today", big: d2.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }), small: String(d2.getFullYear()), say: "The tablet's date is set." };
+    }
+    if (/^(flip a coin|coin flip|heads or tails)$/.test(t)) return { k: "Coin flip", big: Math.random() < .5 ? "Heads" : "Tails", small: "Search again to flip again", say: "Fate has spoken." };
+    var r = /^(?:roll a die|roll a dice|roll dice|random number)(?:\s+(?:1\s*-\s*|between 1 and |to )?(\d+))?$/.exec(t);
+    if (r) { var max = parseInt(r[1] || (t.indexOf("roll") === 0 ? "6" : "100"), 10); return { k: "Random number, 1 to " + max, big: String(1 + Math.floor(Math.random() * max)), small: "Search again to roll again", say: "The dice are cast." }; }
+    return null;
+  }
+
+  // Tablet
+  function verdict(e) { return e.claims && e.claims.length && e.claims.every(function (c) { return /^https?:\/\//i.test(c.url || "") && c.retrieved; }) ? "verified" : "draft"; }
+  function openRecord(e) {
+    $("rec-status").textContent = verdict(e); $("rec-title").textContent = e.title; $("rec-summary").textContent = e.summary; $("rec-body").textContent = e.body;
+    var ol = $("rec-claims"); ol.replaceChildren();
+    e.claims.forEach(function (c) { var li = el("li"); li.appendChild(el("p", null, c.text)); var a = el("a", null, c.url); a.href = c.url; a.target = "_blank"; a.rel = "noopener"; li.appendChild(a); li.appendChild(el("span", null, "Retrieved " + c.retrieved)); ol.appendChild(li); });
+    $("record").hidden = false; $("rec-close").focus();
+  }
+  $("rec-close").addEventListener("click", function () { $("record").hidden = true; });
+  $("record").addEventListener("click", function (ev) { if (ev.target === $("record")) $("record").hidden = true; });
+  function words(t) { return (t.toLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter(function (w) { return w.length > 3; }); }
+  function tabletMatch(q) {
+    var want = words(q), best = null, top = 0;
+    SEED.entries.forEach(function (e) { var title = words(e.title), sc = 0; want.forEach(function (w) { if (title.indexOf(w) !== -1) sc += 3; if (e.summary.toLowerCase().indexOf(w) !== -1) sc += 1; }); if (sc > top) { best = e; top = sc; } });
+    return top >= 3 ? best : null;
+  }
+
+  // Writing effect, then citation pills
+  var token = 0;
+  function cite(node, text, sources) {
+    node.replaceChildren();
+    text = text.replace(/((?:\s*\[\d+\])+)([.,;:!?])/g, "$2$1");
+    text.split(/((?:\s*\[\d+\])+)/).forEach(function (part) {
+      if (!/^\s*\[\d+\]/.test(part)) { if (part) node.appendChild(document.createTextNode(part)); return; }
+      var nums = (part.match(/\d+/g) || []).map(Number), first = sources[nums[0] - 1];
+      if (!first) return;
+      var a = el("a", "pill", shortHost(first.url) + (nums.length > 1 ? " +" + (nums.length - 1) : "")); a.href = first.url; a.target = "_blank"; a.rel = "noopener";
+      a.title = nums.map(function (n) { return sources[n - 1] ? sources[n - 1].name : ""; }).filter(Boolean).join(", ");
+      node.appendChild(document.createTextNode(" ")); node.appendChild(a);
+    });
+  }
+  function write(node, text, turn, fast) {
+    var tk = turn.tk;
+    if (reduced || fast) { cite(node, text, turn.sources); return; }
+    var plain = text.replace(/\s*\[\d+\]/g, ""), start = performance.now(), dur = Math.min(900, 220 + plain.length * 3);
+    (function frame(now) {
+      if (tk !== token) { cite(node, text, turn.sources); return; }
+      var p = Math.min(1, ((now || start) - start) / dur), shown = Math.floor(p * plain.length);
+      node.textContent = plain.slice(0, shown);
+      if (p < 1) { var tail = ""; for (var i = shown; i < Math.min(plain.length, shown + 10); i++) tail += plain[i] === " " ? " " : glyph(); node.appendChild(el("span", "glyph", tail)); requestAnimationFrame(frame); }
+      else cite(node, text, turn.sources);
+    })();
+  }
+
+  // A turn: one question and its answer, built from tagged lines.
+  function Turn(q, isMain, fast) {
+    this.q = q; this.main = isMain; this.fast = fast; this.tk = token; this.sources = []; this.parts = 0; this.intent = ""; this.list = null; this.listTag = ""; this.table = null; this.factTable = null; this.asks = 0; this.nexts = 0;
+    var root = this.root = el("article", "turn");
+    root.appendChild(el("h1", "query", q));
+    this.voice = el("div", "voice"); this.sage = makeSage(46); this.say = el("p"); this.voice.appendChild(this.sage); this.voice.appendChild(this.say); root.appendChild(this.voice);
+    if (fast) { setSage(this.sage, "idle"); this.speak("From your library. Here is what I wrote for you before."); } else this.speak("Let me read your question…");
+    this.trace = el("ol", "trace"); root.appendChild(this.trace);
+    this.extra = el("div"); root.appendChild(this.extra);
+    this.srcLabel = el("div", "label"); this.srcLabel.appendChild(svg(I.src)); this.srcLabel.appendChild(document.createTextNode("Sources")); this.srcLabel.hidden = true; root.appendChild(this.srcLabel);
+    this.srcRow = el("div", "srcrow"); this.srcRow.hidden = true; root.appendChild(this.srcRow);
+    var al = el("div", "label"); al.appendChild(el("span", "sg", "𒀭")); al.appendChild(document.createTextNode("Answer")); root.appendChild(al);
+    this.answer = el("div", "answer"); root.appendChild(this.answer);
+    this.scribe = el("p", "scribe"); this.scribe.appendChild(el("span", "glyph", glyphLine(40))); this.answer.appendChild(this.scribe);
+    this.acts = el("div", "acts"); this.acts.hidden = true; root.appendChild(this.acts);
+    this.rel = el("div", "related"); this.rel.hidden = true;
+    var rh = el("h3"); rh.appendChild(svg(I.related)); rh.appendChild(document.createTextNode("Related")); this.rel.appendChild(rh); root.appendChild(this.rel);
+    this.topics = el("div", "topics"); this.topics.hidden = true; root.appendChild(this.topics);
+    this.results = []; this.web = el("div", "webres"); this.web.hidden = true; root.insertBefore(this.web, this.rel);
+    if (isMain) root.classList.add("main");
+    if (!fast) this.step("Understanding the question");
+  }
+  Turn.prototype.speak = function (text) { this.say.replaceChildren(el("b", null, "Nabu"), document.createTextNode(text)); };
+  Turn.prototype.step = function (text) {
+    var last = this.trace.lastChild; if (last) last.classList.add("done");
+    var li = el("li"); li.appendChild(el("span", "dot")); li.appendChild(el("span", null, text)); this.trace.appendChild(li); this.cur = li;
+  };
+  Turn.prototype.block = function (node) { this.answer.insertBefore(node, this.scribe); return node; };
+  Turn.prototype.line = function (raw) {
+    var m = /^@(\w+)\s*(.*)$/.exec((raw || "").trim()); if (!m) return;
+    var tag = m[1].toLowerCase(), val = clean(m[2]), self = this, n;
+    if (tag === "lead") tag = "tldr";
+    if (!val) return;
+    if ((tag !== "point" && tag !== "step" && tag !== "time") || (this.list && this.listTag !== tag)) this.list = null;
+    if (tag !== "row") this.table = null;
+    if (tag !== "fact") this.factTable = null;
+    switch (tag) {
+      case "intent": this.intent = val.toLowerCase().split(/\W/)[0]; return;
+      case "title": if (this.main) { current.title = val; this.title = val; this.kp(); } return;
+      case "sub": case "conf":
+        if (tag === "conf") this.conf = val.toLowerCase().split(/\W/)[0];
+        else { this.sub = val; this.kp(); }
+        return;
+      case "site":
+        var ps = val.split("|").map(clean), url = ps[1] || "";
+        if (!/^https:\/\/[^\s/]+\.[^\s]+$/i.test(url) || this.sources.length >= 8) return;
+        var type = /^(official|reference|community|video)$/i.test(ps[2] || "") ? ps[2].toLowerCase() : "";
+        var src = { name: ps[0] || hostOf(url), url: url, type: type, why: ps.slice(type ? 3 : 2).join(" | ") };
+        this.sources.push(src);
+        if (this.sources.length === 1 && !this.fast) { this.step("Choosing sources to check"); this.speak("I'm calling the books down from the shelves…"); }
+        this.paintSources();
+        if (this.intent === "go" && this.sources.length === 1 && !this.extra.querySelector(".portal")) this.extra.appendChild(portal(src));
+        return;
+      case "tldr": n = this.block(el("p", "tldr")); if (this.main && !this.lead) { this.lead = val.replace(/\s*\[\d+\]/g, ""); this.kp(); } break;
+      case "p": n = this.block(el("p")); break;
+      case "h": n = this.block(el("h2")); break;
+      case "point": case "step": case "time":
+        if (!this.list) { this.list = this.block(el(tag === "step" ? "ol" : "ul", tag === "time" ? "timeline" : null)); this.listTag = tag; }
+        var li = el("li"); this.list.appendChild(li);
+        if (tag === "time") { var tw = val.split("|"); if (tw.length < 2) { li.remove(); return; } li.appendChild(el("b", null, clean(tw[0]))); n = el("span"); li.appendChild(n); val = clean(tw.slice(1).join("|")); }
+        else n = li;
+        break;
+      case "fact":
+        var kv = val.split("|"); if (kv.length < 2) return;
+        if (!this.factTable) { var w = this.block(el("div", "tbl facts")); var t = el("table"); w.appendChild(t); this.factTable = el("tbody"); t.appendChild(this.factTable); }
+        var tr = el("tr"); tr.appendChild(el("td", null, clean(kv[0]))); n = el("td"); tr.appendChild(n); this.factTable.appendChild(tr); val = clean(kv.slice(1).join("|"));
+        if (this.main) { (this.facts = this.facts || []).push([clean(kv[0]), val]); this.kp(); }
+        break;
+      case "row":
+        var cells = val.split("|").map(clean);
+        if (!this.table) {
+          var wr = this.block(el("div", "tbl")), tb = el("table"); wr.appendChild(tb); var hd = el("thead"), hr = el("tr");
+          cells.forEach(function (c) { hr.appendChild(el("th", null, c)); }); hd.appendChild(hr); tb.appendChild(hd); this.table = el("tbody"); tb.appendChild(this.table); return;
+        }
+        var row = el("tr"); cells.forEach(function (c) { var td = el("td"); row.appendChild(td); write(td, c, self, self.fast); }); this.table.appendChild(row); this.bump(); return;
+      case "unsure": case "fresh":
+        var box = this.block(el("div", "note " + tag)); box.appendChild(svg(tag === "unsure" ? I.q : I.fresh));
+        var body = el("span"); body.appendChild(el("b", null, tag === "unsure" ? "Not settled" : "May have changed")); n = el("span"); body.appendChild(n); box.appendChild(body);
+        break;
+      case "result":
+        var rp = val.split("|").map(clean), ru = rp[1] || "";
+        if (!/^https:\/\/[^\s/]+\.[^\s]+$/i.test(ru) || this.results.length >= 8 || !rp[0]) return;
+        this.results.push({ title: rp[0], url: ru, snippet: rp.slice(2).join(" | ") }); this.paintWeb(); return;
+      case "ask":
+        if (this.asks >= 5) return; this.asks++; this.rel.hidden = false;
+        var r = el("button", "rel"); r.type = "button"; r.appendChild(el("span", "arr", "↳")); r.appendChild(el("span", null, val)); r.appendChild(el("span", "plus", "+"));
+        r.addEventListener("click", function () { follow(val); }); this.rel.appendChild(r); return;
+      case "next":
+        if (this.nexts >= 5) return; this.nexts++; this.topics.hidden = false;
+        var tbn = el("button", null, val); tbn.type = "button"; tbn.addEventListener("click", function () { go(val); }); this.topics.appendChild(tbn);
+        if (this.main) { (this.also = this.also || []).push(val); this.kp(); } return;
+      default: return;
+    }
+    write(n, val, this, this.fast); this.bump();
+  };
+  Turn.prototype.paintWeb = function () {
+    var w = this.web; w.replaceChildren(); w.hidden = false;
+    var h = el("h3"); h.appendChild(svg(I.all)); h.appendChild(document.createTextNode("Web results")); w.appendChild(h);
+    this.results.slice(0, 4).forEach(function (r) { w.appendChild(webRow(r)); });
+    var more = el("button", "more-btn", this.results.length > 4 ? "More results (" + this.results.length + ")" : "More on the web"); more.type = "button";
+    more.addEventListener("click", function () { showTab("sources"); }); w.appendChild(more);
+    paintSourceTab();
+  };
+  Turn.prototype.kp = function () {
+    if (!this.main || this.fast === "x") return;
+    var p = $("panel"), self = this; p.replaceChildren();
+    if (!this.title || this.intent === "quick") return;
+    var c = el("div", "kp"); c.appendChild(el("h2", null, this.title)); if (this.sub) c.appendChild(el("p", "sub", this.sub));
+    var off = this.sources.filter(function (s) { return s.type === "official"; })[0];
+    if (off) { var a = el("a", "open", "Official site ↗"); a.href = off.url; a.target = "_blank"; a.rel = "noopener"; c.appendChild(a); }
+    if (this.lead) c.appendChild(el("p", "desc", this.lead));
+    if (this.facts && this.facts.length) { var dl = el("dl"); this.facts.slice(0, 8).forEach(function (f) { var d = el("div"); d.appendChild(el("dt", null, f[0])); d.appendChild(el("dd", null, f[1])); dl.appendChild(d); }); c.appendChild(dl); }
+    if (this.also && this.also.length) { c.appendChild(el("h4", null, "People also search for")); var al = el("div", "also"); this.also.forEach(function (t) { var b = el("button", null, t); b.type = "button"; b.addEventListener("click", function () { go(t); }); al.appendChild(b); }); c.appendChild(al); }
+    p.appendChild(c);
+  };
+  Turn.prototype.bump = function () {
+    this.parts++;
+    if (this.fast) return;
+    if (this.parts === 1) { this.step("Writing the answer"); this.speak("The pages are opening. I'm writing what is known…"); this.answer.classList.add("arrive"); }
+    else this.cur.lastChild.textContent = "Writing the answer · " + this.parts + " parts";
+  };
+  Turn.prototype.paintSources = function () {
+    var row = this.srcRow; row.replaceChildren(); this.srcLabel.hidden = false; row.hidden = false;
+    var shown = this.sources.slice(0, 3);
+    shown.forEach(function (s, i) {
+      var a = el("a", "scard"); a.href = s.url; a.target = "_blank"; a.rel = "noopener"; a.style.animationDelay = (i * .06) + "s";
+      a.appendChild(el("span", "tt", s.why ? s.name + " — " + s.why : s.name));
+      var meta = el("span", "meta"); meta.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase())); meta.appendChild(el("span", null, hostOf(s.url))); meta.appendChild(el("span", "i", String(i + 1)));
+      a.appendChild(meta); row.appendChild(a);
+    });
+    var more = el("button", "scard more"); more.type = "button";
+    var st = el("span", "stack"); this.sources.slice(0, 4).forEach(function (s) { st.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase())); });
+    more.appendChild(st); more.appendChild(el("span", "tt", this.sources.length > 3 ? "View all " + this.sources.length : "Search the live web"));
+    more.addEventListener("click", function () { showTab("sources"); }); row.appendChild(more);
+    if (this.main || true) paintSourceTab();
+  };
+  Turn.prototype.finish = function (ms) {
+    var self = this;
+    this.scribe.remove();
+    var last = this.trace.lastChild; if (last) last.classList.add("done");
+    if (!this.fast && this.parts) { this.trace.replaceChildren(); var li = el("li", "done"); li.appendChild(el("span", "dot")); li.appendChild(el("span", null, "Answered in " + (ms / 1000).toFixed(1) + "s · " + this.parts + " parts · " + this.sources.length + " sources to check")); this.trace.appendChild(li); }
+    else if (this.fast) this.trace.replaceChildren();
+    setSage(this.sage, "idle");
+    if (!this.fast) {
+      var sure = { high: "I'm confident in this.", medium: "Most of this is solid; check the flagged parts.", low: "Treat this carefully; much of it is uncertain." }[this.conf] || "";
+      this.speak("Here is what is written" + (this.sources.length ? ", and " + this.sources.length + " books to check it against" : "") + ". " + sure);
+    }
+    var acts = this.acts; acts.replaceChildren(); acts.hidden = false;
+    var cp = el("button", "act"); cp.type = "button"; cp.appendChild(svg(I.copy)); cp.appendChild(el("span", null, "Copy"));
+    cp.addEventListener("click", function () {
+      var txt = self.q + "\n\n" + self.answer.innerText;
+      var done = function (msg) { cp.lastChild.textContent = msg; setTimeout(function () { cp.lastChild.textContent = "Copy"; }, 1500); };
+      try { navigator.clipboard.writeText(txt).then(function () { done("Copied"); }, function () { done("Copy blocked"); }); } catch (e) { done("Copy blocked"); }
+    });
+    acts.appendChild(cp);
+    if (this.main) { var rw = el("button", "act"); rw.type = "button"; rw.appendChild(svg(I.redo)); rw.appendChild(el("span", null, "Rewrite")); rw.addEventListener("click", function () { go(self.q, true); }); acts.appendChild(rw); }
+    if (this.sources.length) {
+      var sb = el("button", "act srcs"); sb.type = "button"; var st = el("span", "stack");
+      this.sources.slice(0, 3).forEach(function (s) { st.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase())); });
+      sb.appendChild(st); sb.appendChild(el("span", null, this.sources.length + " sources")); sb.addEventListener("click", function () { showTab("sources"); }); acts.appendChild(sb);
+    }
+    if (/^(high|medium|low)$/.test(this.conf || "")) { var c = el("span", "conf " + this.conf); c.appendChild(el("i")); c.appendChild(document.createTextNode(this.conf.charAt(0).toUpperCase() + this.conf.slice(1) + " confidence")); acts.appendChild(c); }
+  };
+  Turn.prototype.fail = function (code) {
+    this.scribe.remove(); this.trace.replaceChildren(); setSage(this.sage, "idle"); this.speak("The shelves are quiet for the moment.");
+    var msg = code === "not_granted" ? "Nabu needs your permission to write answers. Search again and choose Allow."
+      : code === "rate_limited" ? "Too many questions at once. Give it a few seconds and try again."
+      : code === "unavailable" ? "The writer isn't available in this view. The live web searches under Sources still work."
+      : "This answer couldn't be written just now. Try again.";
+    this.answer.appendChild(el("div", "err", msg));
+  };
+
+  function webRow(r) {
+    var a = el("a", "wr"); a.href = r.url; a.target = "_blank"; a.rel = "noopener";
+    var cr = el("span", "crumb"); cr.appendChild(el("span", "fav", shortHost(r.url).charAt(0).toUpperCase()));
+    var ct = el("span"); ct.style.minWidth = "0"; ct.appendChild(el("span", "site", shortHost(r.url).charAt(0).toUpperCase() + shortHost(r.url).slice(1)));
+    var u = r.url.replace(/^https:\/\//, "").replace(/\/$/, "").split("/"); ct.appendChild(el("span", "url", "https://" + u.join(" › "))); cr.appendChild(ct); a.appendChild(cr);
+    a.appendChild(el("span", "tt", r.title)); if (r.snippet) a.appendChild(el("p", null, r.snippet)); return a;
+  }
+  function portal(s) {
+    var a = el("a", "portal"); a.href = s.url; a.target = "_blank"; a.rel = "noopener";
+    a.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase()));
+    var t = el("span"); t.appendChild(el("strong", null, s.name)); t.appendChild(el("small", null, hostOf(s.url))); a.appendChild(t);
+    a.appendChild(el("span", "go", "Open site ↗")); return a;
+  }
+
+  function paintSourceTab() {
+    var all = [], seen = {};
+    turns.forEach(function (t) { t.sources.forEach(function (s) { if (!seen[s.url]) { seen[s.url] = 1; all.push(s); } }); });
+    var web = [], wseen = {};
+    turns.forEach(function (t) { (t.results || []).forEach(function (r) { if (!wseen[r.url]) { wseen[r.url] = 1; web.push(r); } }); });
+    var lw = $("links-web"); lw.replaceChildren(); web.forEach(function (r) { lw.appendChild(webRow(r)); });
+    if (!web.length) lw.appendChild(el("p", "side-foot", "Web results appear here once an answer is written."));
+    $("src-count").textContent = (all.length + web.length) || "";
+    var box = $("slist"); box.replaceChildren();
+    all.forEach(function (s) {
+      var a = el("a", "sitem"); a.href = s.url; a.target = "_blank"; a.rel = "noopener";
+      a.appendChild(el("span", "fav", shortHost(s.url).charAt(0).toUpperCase()));
+      var t = el("span"); t.style.minWidth = "0"; var h = el("span"); h.appendChild(el("strong", null, s.name)); if (s.type) h.appendChild(el("span", "ty", s.type)); t.appendChild(h);
+      if (s.why) t.appendChild(el("p", null, s.why)); t.appendChild(el("span", "u", s.url)); a.appendChild(t); box.appendChild(a);
+    });
+    if (!all.length) box.appendChild(el("p", "side-foot", "No sources suggested for this answer. Try a live search below."));
+  }
+  function live(q) {
+    var wrap = $("live"), enc = encodeURIComponent(q); wrap.replaceChildren();
+    [["Google", "https://www.google.com/search?q="], ["Bing", "https://www.bing.com/search?q="], ["Wikipedia", "https://en.wikipedia.org/w/index.php?search="],
+     ["YouTube", "https://www.youtube.com/results?search_query="], ["Reddit", "https://www.reddit.com/search/?q="], ["Scholar", "https://scholar.google.com/scholar?q="]].forEach(function (d) {
+      var a = el("a", null, d[0] + " ↗"); a.href = d[1] + enc; a.target = "_blank"; a.rel = "noopener"; wrap.appendChild(a);
+    });
+  }
+  function showTab(name) {
+    document.querySelectorAll(".tab").forEach(function (t) { t.setAttribute("aria-selected", String(t.dataset.tab === name)); });
+    $("pane-answer").hidden = name !== "answer"; $("pane-sources").hidden = name !== "sources";
+    window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+  }
+  document.querySelectorAll(".tab").forEach(function (t) { t.addEventListener("click", function () { showTab(t.dataset.tab); }); });
+
+  var PROMPT = [
+    "You are Nabu, a search engine and encyclopedia that answers like the best of Perplexity and Wikipedia together. Someone asked:",
+    "«{Q}»",
+    "{FOCUS}",
+    "Write the answer they need. Lead with the direct answer, then what matters most, then depth. Be specific, with real names, numbers, dates, and examples. No filler and no repetition. Be honest about uncertainty.",
+    "",
+    "Intent: go = they want a specific website or app; know = understand a subject; do = how to do something; compare = choose between options; quick = a one-line fact, definition, or calculation.",
+    "",
+    "Output only lines that start with a tag. No markdown, no blank lines, nothing else.",
+    "@intent go|know|do|compare|quick",
+    "@title the proper name of the subject or a short task title",
+    "@site Name | https://url | official|reference|community|video | what the reader will find there   (two to five, BEFORE the answer; only URLs you are certain exist exactly as written; a homepage beats a guessed deep link; for go, the destination comes first)",
+    "@conf high|medium|low   (your honest confidence that the answer is accurate and current)",
+    "@tldr the direct answer in one or two sentences, citing sources as [1], [2] by their order above when they support it",
+    "@point a key takeaway in one specific sentence   (three to five)",
+    "@fact Label | value   (know: four to eight key facts, like an infobox)",
+    "@h a section heading",
+    "@p a paragraph of two to four sentences, with [n] citations where a source supports it",
+    "@step one instruction   (do: four to eight, after an @h)",
+    "@row cell | cell | cell   (compare: first row is the header, then three to six rows)",
+    "@time when | what happened   (history, people, stories, products: four to eight, oldest first)",
+    "@unsure something disputed, unknown, or commonly gotten wrong   (zero to two)",
+    "@fresh something that may have changed since your knowledge was last updated   (zero to two; always include one for prices, versions, rankings, current roles, or ongoing events)",
+    "@result Page title | https://url | one-sentence snippet of what the page says   (four to six web pages a great search engine would rank for this, best first; same certainty rule as @site; include different kinds: reference, official, guides, discussion)",
+    "@ask a natural follow-up question the reader might ask next   (four)",
+    "@next a related topic, two to four words   (three)",
+    "",
+    "Order: @intent @title, the @site lines, @conf, @tldr, @point lines, @fact lines, then depth (@h with @p, @step, @row, or @time), then @unsure @fresh @result @ask @next.",
+    "For quick, keep it to @tldr and one or two @point lines before @ask and @next.{TABLET}"
+  ].join("\n");
+  var FOCUS_HINT = { all: "", know: "The reader chose Encyclopedia focus: treat it as know and go deep.", do: "The reader chose How-to focus: treat it as do, with clear numbered steps.", compare: "The reader chose Compare focus: treat it as compare, with a table and a verdict." };
+
+  var turns = [], current = null, ctl = null;
+
+  function stream(input, turn, done, meta) {
+    var seen = 0, tk = turn.tk, t0 = performance.now();
+    document.body.classList.add("writing");
+    function feed(text, final) { var lines = text.split("\n"), upto = final ? lines.length : lines.length - 1; for (; seen < upto; seen++) turn.line(lines[seen]); }
+    var murmur = reduced ? 0 : setInterval(function () { if (turn.scribe.isConnected) turn.scribe.firstChild.textContent = glyphLine(24 + Math.floor(Math.random() * 30)); }, 150);
+    ctl = new AbortController();
+    var onText = function (u) { if (tk === token) feed(u.text, false); };
+    (LIVE && meta ? backend(meta, onText, ctl.signal) : samplePromise.then(function (sample) {
+      if (!sample) throw { code: "unavailable" };
+      return sample(input, { modelTier: "quick", signal: ctl.signal, cache: typeof input === "string" && !input._nocache, onText: onText });
+    })).then(function (r) { if (tk !== token) return; feed(r.text, true); turn.finish(performance.now() - t0); done(r.text, null); })
+      .catch(function (e) { if (tk !== token) return; if (e && e.text) { feed(e.text, true); turn.finish(performance.now() - t0); done(e.text, null); } else { turn.fail(e && e.code); done("", e || {}); } })
+      .then(function () { clearInterval(murmur); document.body.classList.remove("writing"); });
+  }
+
+  function openThread(q) {
+    token++; if (ctl) ctl.abort();
+    $("record").hidden = true; closers.forEach(function (c) { c(); });
+    turns = []; $("pane-answer").replaceChildren(); $("panel").replaceChildren(); showTab("answer");
+    document.body.classList.remove("at-home"); $("home").hidden = true; $("tview").hidden = false; $("dock").hidden = false; $("top-new").hidden = false;
+    $("nav-home").removeAttribute("aria-current"); $("nav-tablet").removeAttribute("aria-current");
+    live(q); window.scrollTo(0, 0);
+  }
+
+  function go(q, rewrite) {
+    q = (q || "").trim(); if (!q) return;
+    openThread(q);
+    current = { q: q, title: "", raw: "", turns: [], follow: [], at: Date.now() };
+    var turn = new Turn(q, true, false); turns.push(turn); $("pane-answer").appendChild(turn.root);
+    var inst = instant(q);
+    if (inst) {
+      var ic = el("div", "instant"); ic.appendChild(el("div", "k", inst.k)); ic.appendChild(el("div", "big", inst.big)); ic.appendChild(el("div", "small", inst.small)); turn.extra.appendChild(ic);
+      turn.scribe.remove(); turn.trace.replaceChildren(); turn.root.querySelectorAll(".label").forEach(function (l) { l.hidden = true; }); turn.answer.hidden = true;
+      setSage(turn.sage, "idle"); turn.speak(inst.say);
+      current.raw = ""; return;
+    }
+    var dm = DOMAIN_RE.exec(q), tab = tabletMatch(q);
+    if (dm) turn.extra.appendChild(portal({ name: dm[1].toLowerCase(), url: "https://" + dm[1].toLowerCase() + (dm[2] || "") }));
+    if (tab) { var tb = el("button", "tablet"); tb.type = "button"; tb.appendChild(el("span", "fav", "𒀭")); var tt = el("span"); tt.appendChild(el("small", null, "On the tablet · " + verdict(tab) + " ")); tt.appendChild(document.createTextNode(tab.title + ", with cited claims")); tb.appendChild(tt); tb.addEventListener("click", function () { openRecord(tab); }); turn.extra.appendChild(tb); }
+    var prompt = PROMPT.replace("{Q}", q).replace("{FOCUS}", FOCUS_HINT[focus] || "").replace("{TABLET}", tab ? "\n\nNabu's verified tablet has an entry on this. Treat it as true and build on it:\n" + tab.title + ": " + tab.summary + "\n" + tab.body.slice(0, 1400) : "");
+    if (rewrite) prompt += "\n\n(Write a fresh version of this answer.)";
+    stream(prompt, turn, function (text, err) {
+      if (err && !text) return;
+      current.raw = text; current.turns = [{ role: "user", content: prompt }, { role: "assistant", content: text }];
+      if (!current.title) current.title = q;
+      shelf = [current].concat(shelf.filter(function (s) { return s.q.toLowerCase() !== q.toLowerCase(); })).slice(0, 60); store.set(KEY, shelf); renderLibrary();
+    }, { q: q, focus: focus, rewrite: !!rewrite });
+  }
+
+  function follow(q) {
+    q = (q || "").trim(); if (!q || !current || !current.turns.length) return;
+    var turn = new Turn(q, false, false); turns.push(turn); $("pane-answer").appendChild(turn.root); showTab("answer");
+    setTimeout(function () { turn.root.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" }); }, 30);
+    var msgs = current.turns.concat([{ role: "user", content: "Follow-up from the same person: «" + q + "»\nAnswer it with the same tags and order: up to three @site lines, @conf, @tldr with [n] citations, then @point or @p, and @step, @row, @fact, @time, @unsure, or @fresh only if they help. Then three @ask lines. Tagged lines only. Number citations by the @site lines in this answer." }]);
+    stream(msgs, turn, function (text, err) {
+      if (err && !text) return;
+      current.turns = msgs.concat([{ role: "assistant", content: text }]); current.follow = (current.follow || []).concat([{ q: q, text: text }]);
+      shelf = [current].concat(shelf.filter(function (s) { return s !== current && s.q !== current.q; })).slice(0, 60); store.set(KEY, shelf);
+    }, { q: q, focus: focus, history: [{ role: "user", content: current.q }, { role: "assistant", content: current.raw }].concat((current.follow || []).reduce(function (a, f) { return a.concat([{ role: "user", content: f.q }, { role: "assistant", content: f.text }]); }, [])) });
+  }
+
+  function reopen(s) {
+    openThread(s.q); current = s; current.follow = current.follow || [];
+    var turn = new Turn(s.q, true, true); turns.push(turn); $("pane-answer").appendChild(turn.root);
+    (s.raw || "").split("\n").forEach(function (l) { turn.line(l); }); turn.finish(0);
+    current.follow.forEach(function (f) { var t = new Turn(f.q, false, true); turns.push(t); $("pane-answer").appendChild(t.root); f.text.split("\n").forEach(function (l) { t.line(l); }); t.finish(0); });
+    if (!current.turns || !current.turns.length) current.turns = [{ role: "user", content: PROMPT.replace("{Q}", s.q).replace("{FOCUS}", "").replace("{TABLET}", "") }, { role: "assistant", content: s.raw || "" }];
+    paintSourceTab();
+  }
+
+  function home() {
+    token++; if (ctl) ctl.abort();
+    $("tview").hidden = true; $("dock").hidden = true; $("home").hidden = false; $("top-new").hidden = true;
+    $("nav-home").setAttribute("aria-current", "page"); $("nav-tablet").removeAttribute("aria-current");
+    setSage($("home-sage"), "idle"); document.body.classList.add("at-home"); $("home-q").value = ""; growHome(); window.scrollTo(0, 0); $("home-q").focus();
+  }
+
+  var growHome = wireBox($("home-q"), $("home-form")), growDock = wireBox($("dock-q"), $("dock-form"));
+  var closers = [attachSuggest($("home-q"), $("home-suggest"), $("home-form"), function (q) { go(q); })];
+  $("dock-form")._sugIdx = -1;
+  $("home-form").addEventListener("submit", function (ev) { ev.preventDefault(); go($("home-q").value); });
+  $("dock-form").addEventListener("submit", function (ev) { ev.preventDefault(); var q = $("dock-q").value; $("dock-q").value = ""; growDock(); follow(q); });
+  ["side-logo", "top-logo", "new", "top-new", "nav-home"].forEach(function (id) { $(id).addEventListener("click", home); });
+  $("nav-tablet").addEventListener("click", function () { openRecord(SEED.entries.filter(function (e) { return e.slug === "nabu"; })[0] || SEED.entries[0]); });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") { $("record").hidden = true; return; }
+    if (ev.key === "/" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { ev.preventDefault(); ($("home").hidden ? $("dock-q") : $("home-q")).focus(); }
+  });
+
+  if (LIVE) $("how").innerHTML = "<b>How Nabu answers.</b> Each answer is written by an open model on Cloudflare Workers AI from live sources fetched for your question: Wikipedia, and Brave Search when it is configured. Sources and web results are those real pages, and citations point to them. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged. No ads, no sponsored results, no tracking.";
+  document.body.classList.add("at-home");
+  renderFocus($("home-focus")); renderFocus($("dock-focus")); renderCards(); renderLibrary();
+})();
+</script>
+
+</body>
+</html>

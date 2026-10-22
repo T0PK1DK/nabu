@@ -434,7 +434,7 @@
         <div class="live" id="live"></div>
         <div class="label">Web results</div>
         <div id="links-web"></div>
-        <div class="how"><b>How Nabu answers.</b> Claude writes each answer from what it learned in training; this view cannot read the live web. Sources are places to check, chosen by the model, not proof of where each sentence came from. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged in the answer. No ads, no sponsored results, no tracking.</div>
+        <div class="how" id="how"><b>How Nabu answers.</b> Claude writes each answer from what it learned in training; this view cannot read the live web. Sources are places to check, chosen by the model, not proof of where each sentence came from. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged in the answer. No ads, no sponsored results, no tracking.</div>
       </div>
     </section>
     <aside class="panel" id="panel" aria-label="Knowledge panel"></aside>
@@ -479,6 +479,21 @@
   var store = { get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
                 set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* this visit only */ } } };
   var samplePromise = window.claude && window.claude.use ? window.claude.use("sample") : Promise.resolve(null);
+  // Outside claude.ai (Cloudflare Worker or python3 app.py), answers stream from the live backend at /api/answer.
+  var LIVE = !(window.claude && window.claude.use) && /^https?:$/.test(location.protocol);
+  function backend(meta, onText, signal) {
+    return fetch("api/answer", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(meta), signal: signal }).then(function (res) {
+      if (!res.ok) throw { code: res.status === 429 ? "rate_limited" : "failed" };
+      if (!res.body || !res.body.getReader) return res.text().then(function (t) { onText({ text: t }); return { text: t }; });
+      var reader = res.body.getReader(), dec = new TextDecoder(), text = "";
+      return (function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) { text += dec.decode(); return { text: text }; }
+          text += dec.decode(r.value, { stream: true }); onText({ text: text }); return pump();
+        });
+      })();
+    });
+  }
   var shelf = store.get(KEY, []);
 
   var I = {
@@ -714,6 +729,7 @@
   var token = 0;
   function cite(node, text, sources) {
     node.replaceChildren();
+    text = text.replace(/((?:\s*\[\d+\])+)([.,;:!?])/g, "$2$1");
     text.split(/((?:\s*\[\d+\])+)/).forEach(function (part) {
       if (!/^\s*\[\d+\]/.test(part)) { if (part) node.appendChild(document.createTextNode(part)); return; }
       var nums = (part.match(/\d+/g) || []).map(Number), first = sources[nums[0] - 1];
@@ -987,16 +1003,17 @@
 
   var turns = [], current = null, ctl = null;
 
-  function stream(input, turn, done) {
+  function stream(input, turn, done, meta) {
     var seen = 0, tk = turn.tk, t0 = performance.now();
     document.body.classList.add("writing");
     function feed(text, final) { var lines = text.split("\n"), upto = final ? lines.length : lines.length - 1; for (; seen < upto; seen++) turn.line(lines[seen]); }
     var murmur = reduced ? 0 : setInterval(function () { if (turn.scribe.isConnected) turn.scribe.firstChild.textContent = glyphLine(24 + Math.floor(Math.random() * 30)); }, 150);
     ctl = new AbortController();
-    samplePromise.then(function (sample) {
+    var onText = function (u) { if (tk === token) feed(u.text, false); };
+    (LIVE && meta ? backend(meta, onText, ctl.signal) : samplePromise.then(function (sample) {
       if (!sample) throw { code: "unavailable" };
-      return sample(input, { modelTier: "quick", signal: ctl.signal, cache: typeof input === "string" && !input._nocache, onText: function (u) { if (tk === token) feed(u.text, false); } });
-    }).then(function (r) { if (tk !== token) return; feed(r.text, true); turn.finish(performance.now() - t0); done(r.text, null); })
+      return sample(input, { modelTier: "quick", signal: ctl.signal, cache: typeof input === "string" && !input._nocache, onText: onText });
+    })).then(function (r) { if (tk !== token) return; feed(r.text, true); turn.finish(performance.now() - t0); done(r.text, null); })
       .catch(function (e) { if (tk !== token) return; if (e && e.text) { feed(e.text, true); turn.finish(performance.now() - t0); done(e.text, null); } else { turn.fail(e && e.code); done("", e || {}); } })
       .then(function () { clearInterval(murmur); document.body.classList.remove("writing"); });
   }
@@ -1032,7 +1049,7 @@
       current.raw = text; current.turns = [{ role: "user", content: prompt }, { role: "assistant", content: text }];
       if (!current.title) current.title = q;
       shelf = [current].concat(shelf.filter(function (s) { return s.q.toLowerCase() !== q.toLowerCase(); })).slice(0, 60); store.set(KEY, shelf); renderLibrary();
-    });
+    }, { q: q, focus: focus, rewrite: !!rewrite });
   }
 
   function follow(q) {
@@ -1044,7 +1061,7 @@
       if (err && !text) return;
       current.turns = msgs.concat([{ role: "assistant", content: text }]); current.follow = (current.follow || []).concat([{ q: q, text: text }]);
       shelf = [current].concat(shelf.filter(function (s) { return s !== current && s.q !== current.q; })).slice(0, 60); store.set(KEY, shelf);
-    });
+    }, { q: q, focus: focus, history: [{ role: "user", content: current.q }, { role: "assistant", content: current.raw }].concat((current.follow || []).reduce(function (a, f) { return a.concat([{ role: "user", content: f.q }, { role: "assistant", content: f.text }]); }, [])) });
   }
 
   function reopen(s) {
@@ -1075,6 +1092,7 @@
     if (ev.key === "/" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { ev.preventDefault(); ($("home").hidden ? $("dock-q") : $("home-q")).focus(); }
   });
 
+  if (LIVE) $("how").innerHTML = "<b>How Nabu answers.</b> Each answer is written by an open model on Cloudflare Workers AI from live sources fetched for your question: Wikipedia, and Brave Search when it is configured. Sources and web results are those real pages, and citations point to them. Confidence is the model's own estimate, and disputed or time-sensitive points are flagged. No ads, no sponsored results, no tracking.";
   document.body.classList.add("at-home");
   renderFocus($("home-focus")); renderFocus($("dock-focus")); renderCards(); renderLibrary();
 })();

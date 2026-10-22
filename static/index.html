@@ -397,7 +397,7 @@
           <p class="voice" id="voice" aria-live="polite">{{VOICE}}</p>
         </div>
       </div>
-      <form id="ask" action="/" method="get">
+      <form id="ask" action="/tablet" method="get">
         <label for="q">Ask him</label>
         <div class="field">
           <input id="q" type="search" name="q" value="{{QUERY}}" placeholder="Writing, fate, a god…" autofocus>
@@ -709,14 +709,14 @@
         paint(q, data.hits || [], ritual);
       })
       .catch(function () {
-        location.href = q ? "/?q=" + encodeURIComponent(q) : "/";
+        location.href = q ? "/tablet?q=" + encodeURIComponent(q) : "/tablet";
       });
   }
 
   form.addEventListener("submit", function (event) {
     event.preventDefault();
     var q = input.value.trim();
-    history.pushState({ q: q }, "", q ? "/?q=" + encodeURIComponent(q) : "/");
+    history.pushState({ q: q }, "", q ? "/tablet?q=" + encodeURIComponent(q) : "/tablet");
     ask(q, true);
   });
 

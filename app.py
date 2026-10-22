@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Nabu v0.3 — local cited encyclopedia, search index, and a sage that reads it.
+"""Nabu v1.0 — local cited encyclopedia, search index, and a sage that reads it.
 
 Python 3 standard library only. SQLite FTS5. No crawler, no embeddings.
 The sage answers from the tablet through Cloudflare Workers AI when a token is
@@ -32,7 +32,8 @@ LEARN = os.environ.get("NABU_LEARN", "1") != "0"
 LEARN_PER_HOUR = int(os.environ.get("NABU_LEARN_PER_HOUR", "12"))
 CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID", "").strip()
 CF_API_TOKEN = os.environ.get("CF_API_TOKEN", "").strip()
-CF_MODEL = os.environ.get("NABU_CF_MODEL", "@cf/meta/llama-3.1-8b-instruct").strip()
+CF_MODEL = os.environ.get("NABU_CF_MODEL", "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
+BRAVE_API_KEY = os.environ.get("BRAVE_API_KEY", "").strip()
 DOMAIN_RE = re.compile(r"(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})(/\S*)?", re.I)
 
 
@@ -510,6 +511,195 @@ def ask(q):
     return {"query": q, "answer": answer, "mode": mode, "sources": sources, "learned": learned, "portal": portal, "hits": hits}
 
 
+
+# The answer engine behind the new page: live sources, then a cited answer.
+# Same contract as worker/src/index.js, so the page works against either.
+
+ANSWER_SPEC = """Output only lines that start with a tag. No markdown, no blank lines, nothing else.
+@intent go|know|do|compare|quick
+@title the proper name of the subject or a short task title
+@sub one line saying what it is
+@conf high|medium|low   (how well the sources and your knowledge support the answer)
+@tldr the direct answer in one or two sentences, citing sources as [1], [2]
+@point a key takeaway in one specific sentence   (three to five)
+@fact Label | value   (know: four to eight key facts, like an infobox)
+@h a section heading
+@p a paragraph of two to four sentences, with [n] citations where a source supports it
+@step one instruction   (do: four to eight, after an @h)
+@row cell | cell | cell   (compare: first row is the header, then three to six rows)
+@time when | what happened   (history, people, stories, products: four to eight, oldest first)
+@unsure something disputed, unknown, or not covered by the sources   (zero to two)
+@fresh something that may have changed recently   (zero to two)
+@ask a natural follow-up question the reader might ask next   (four)
+@next a related topic, two to four words   (three)
+Order: @intent @title @sub @conf @tldr, @point lines, @fact lines, then depth, then @unsure @fresh @ask @next.
+Do not write @site or @result lines; the sources are already listed."""
+
+ANSWER_FOCUS = {
+    "know": "The reader chose Encyclopedia focus: treat it as know and go deep.",
+    "do": "The reader chose How-to focus: treat it as do, with clear numbered steps.",
+    "compare": "The reader chose Compare focus: treat it as compare, with a table and a verdict.",
+}
+
+
+def plain(text):
+    text = html.unescape(re.sub(r"<[^>]+>", "", str(text or "")))
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def one_line(text, limit=220):
+    text = plain(text).replace("|", "/")
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def wikipedia_sources(q):
+    found = fetch_json(
+        "https://en.wikipedia.org/w/api.php?"
+        + urlencode({"action": "query", "list": "search", "srsearch": q, "srlimit": 5, "format": "json"})
+    )
+    hits = found.get("query", {}).get("search", [])
+    out, seen = [], set()
+    for hit in hits[:3]:
+        try:
+            page = fetch_json(
+                "https://en.wikipedia.org/api/rest_v1/page/summary/" + quote(hit["title"].replace(" ", "_"), safe="")
+            )
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+        if page.get("type") == "disambiguation" or not page.get("extract"):
+            continue
+        url = page.get("content_urls", {}).get("desktop", {}).get("page")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        out.append({"name": page.get("title") or hit["title"], "url": url, "type": "reference",
+                    "text": page["extract"], "snippet": page.get("description") or one_line(page["extract"], 160)})
+    for hit in hits:
+        url = "https://en.wikipedia.org/wiki/" + quote(hit["title"].replace(" ", "_"))
+        if url in seen:
+            continue
+        seen.add(url)
+        out.append({"name": hit["title"], "url": url, "type": "reference",
+                    "text": plain(hit.get("snippet")), "snippet": one_line(hit.get("snippet"), 160)})
+    return out
+
+
+def brave_sources(q):
+    data = fetch_json(
+        "https://api.search.brave.com/res/v1/web/search?" + urlencode({"q": q, "count": 8, "safesearch": "moderate"}),
+        headers={"X-Subscription-Token": BRAVE_API_KEY, "Accept": "application/json"},
+    )
+    out = []
+    for r in data.get("web", {}).get("results", []):
+        host = urlparse(r.get("url", "")).hostname or ""
+        if not is_http_url(r.get("url", "")):
+            continue
+        kind = ("video" if re.search(r"youtube\.com|vimeo", host) else
+                "community" if re.search(r"reddit\.com|fandom\.com|stackexchange|stackoverflow|quora", host) else
+                "reference" if re.search(r"wikipedia\.org|britannica", host) else "official")
+        out.append({"name": (r.get("profile") or {}).get("name") or host.removeprefix("www."), "title": plain(r.get("title")),
+                    "url": r["url"], "type": kind, "text": plain(r.get("description")), "snippet": one_line(r.get("description"), 200)})
+    return out
+
+
+def tablet_sources(q):
+    """A verified tablet entry leads when it matches: it is the one source Nabu has checked itself."""
+    out = []
+    for hit in search(q)[:1]:
+        entry = get_entry(hit["slug"])
+        if entry and entry["status"] == "verified" and entry["claims"]:
+            out.append({"name": "The Tablet: " + entry["title"], "title": entry["title"] + " (Nabu's tablet)",
+                        "url": entry["claims"][0]["url"], "type": "reference",
+                        "text": entry["summary"] + " " + entry["body"], "snippet": entry["summary"]})
+    return out
+
+
+def gather_sources(q):
+    tablet = tablet_sources(q)
+    try:
+        wiki = wikipedia_sources(q)
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        print(f"[nabu] Wikipedia unavailable: {exc}")
+        wiki = []
+    web = []
+    if BRAVE_API_KEY:
+        try:
+            web = brave_sources(q)
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            print(f"[nabu] Brave unavailable: {exc}")
+    out, seen = list(tablet), {s["url"] for s in tablet}
+    for i in range(max(len(wiki), len(web))):
+        for src in (web[i] if i < len(web) else None, wiki[i] if i < len(wiki) else None):
+            if src and src["url"] not in seen:
+                seen.add(src["url"])
+                out.append(src)
+    return out[:8]
+
+
+def header_lines(sources):
+    lines = [f"@site {one_line(s['name'], 80)} | {s['url']} | {s['type']} | {one_line(s['snippet'], 120)}" for s in sources[:5]]
+    lines += [f"@result {one_line(s.get('title') or s['name'], 120)} | {s['url']} | {one_line(s['snippet'] or s['text'], 220)}" for s in sources]
+    return lines
+
+
+def answer_messages(q, sources, payload):
+    ctx = "\n\n".join(f"[{i}] {s.get('title') or s['name']} ({s['url']})\n{s['text'][:1500]}" for i, s in enumerate(sources[:5], 1))
+    system = (
+        "You are Nabu, a search engine and encyclopedia. You answer from the numbered sources below, citing them as [n]. "
+        "If the sources do not cover something, you may add well-established general knowledge without a citation, and lower @conf when you rely on it. "
+        "Be specific: names, numbers, dates. No filler.\n\n" + ANSWER_SPEC + "\n\nSources:\n"
+        + (ctx or "(no sources were found; answer from general knowledge, set @conf low, and say so in @unsure)")
+    )
+    history = []
+    for m in (payload.get("history") or [])[-10:]:
+        if isinstance(m, dict) and m.get("role") in ("user", "assistant") and isinstance(m.get("content"), str):
+            history.append({"role": m["role"], "content": m["content"][:6000]})
+    ask_text = ("Follow-up question: " if history else "Question: ") + q
+    if ANSWER_FOCUS.get(payload.get("focus")):
+        ask_text += "\n" + ANSWER_FOCUS[payload["focus"]]
+    if payload.get("rewrite"):
+        ask_text += "\nWrite a fresh version of this answer."
+    return [{"role": "system", "content": system}] + history + [{"role": "user", "content": ask_text}]
+
+
+def extractive_answer(q, sources):
+    lines = ["@intent know", "@title " + one_line(sources[0]["name"] if sources else q, 80), "@conf medium"]
+    if not sources:
+        return lines + ["@tldr Nothing was found for this question. Try different words, or a live search below."]
+    sentences = re.split(r"(?<=[.!?])\s+", plain(sources[0]["text"]))
+    lines.append("@tldr " + " ".join(sentences[:2]) + " [1]")
+    if len(sentences) > 2:
+        lines.append("@p " + " ".join(sentences[2:6]) + " [1]")
+    for i, s in enumerate(sources[1:4], 2):
+        if s["text"]:
+            lines.append(f"@point {one_line(s['text'], 200)} [{i}]")
+    lines.append("@unsure This answer was read straight from the sources; the writing model was not configured or did not respond.")
+    return lines
+
+
+def answer(payload):
+    """Text in Nabu's tag format: the source lines first, then the written answer."""
+    q = str(payload.get("q") or "").strip()[:500]
+    if not q:
+        return None
+    sources = gather_sources(q)
+    head = header_lines(sources)
+    text = None
+    if CF_ACCOUNT_ID and CF_API_TOKEN:
+        try:
+            data = fetch_json(
+                f"https://api.cloudflare.com/client/v4/accounts/{CF_ACCOUNT_ID}/ai/run/{CF_MODEL}",
+                data=json.dumps({"messages": answer_messages(q, sources, payload), "max_tokens": 1400, "temperature": 0.3}).encode("utf-8"),
+                headers={"Authorization": f"Bearer {CF_API_TOKEN}", "Content-Type": "application/json"},
+                timeout=45,
+            )
+            text = ((data.get("result") or {}).get("response") or "").strip() or None
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            print(f"[nabu] Workers AI failed: {exc}")
+    body = text.splitlines() if text else extractive_answer(q, sources)
+    return "\n".join(head + [line for line in body if line.strip()])
+
+
 def esc(value):
     return html.escape(str(value), quote=True)
 
@@ -691,6 +881,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_asset("scribe.jpg", "image/jpeg")
             return
         if path in ("/", "/index.html"):
+            self.send_html((STATIC / "app.html").read_bytes())
+            return
+        if path == "/tablet":
             q = parse_qs(parsed.query).get("q", [""])[0]
             self.send_html(render_home(q))
             return
@@ -731,7 +924,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(500, {"error": "server error"})
 
     def route_post(self):
-        if urlparse(self.path).path != "/api/propose":
+        route = urlparse(self.path).path
+        if route not in ("/api/propose", "/api/answer"):
             self.send_json(404, {"error": "not found"})
             return
         try:
@@ -747,6 +941,22 @@ class Handler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             self.send_json(400, {"ok": False, "error": "invalid json"})
             return
+        if route == "/api/answer":
+            if not isinstance(payload, dict):
+                self.send_json(400, {"error": "json object required"})
+                return
+            text = answer(payload)
+            if text is None:
+                self.send_json(400, {"error": "q is required"})
+                return
+            raw = text.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
         code, body = propose(payload)
         self.send_json(code, body)
 
@@ -759,8 +969,9 @@ def main():
     init_db()
     seed()
     server = Server((HOST, PORT), Handler)
-    print(f"Nabu v0.3 on http://{HOST}:{PORT}")
+    print(f"Nabu v1.0 on http://{HOST}:{PORT}  (the tablet: /tablet)")
     print("[nabu] sage:", "Workers AI " + CF_MODEL if CF_ACCOUNT_ID and CF_API_TOKEN else "reading the tablet (set CF_ACCOUNT_ID and CF_API_TOKEN for Workers AI)")
+    print("[nabu] web results:", "Wikipedia + Brave Search" if BRAVE_API_KEY else "Wikipedia (set BRAVE_API_KEY for the open web)")
     print("[nabu] learning:", f"Wikipedia, up to {LEARN_PER_HOUR} lessons an hour" if LEARN else "off")
     server.serve_forever()
 

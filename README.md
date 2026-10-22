@@ -1,40 +1,51 @@
-# Nabu v0.3
+# Nabu v1.0
 
-Nabu v0.3 keeps entries in SQLite, searches them with FTS5, and verifies an entry only when every claim has a source URL and a retrieval date.
+A cited answer engine and encyclopedia. Ask anything: Nabu fetches live sources, writes an answer that cites them, and shows how sure it is. It blends Perplexity (source cards, cited answers, follow-ups) with Google (instant answers, a knowledge panel, web results), guided by Nabu himself, an all-seeing sage among floating books.
 
-A local cited encyclopedia. Humans use the search box. An agent uses the same database through the API, not the HTML. Unsourced text is stored as a draft and cannot be marked verified. There is no crawler, no embeddings, and no accounts.
+There are three ways to run the same page:
 
-Books drift around the tablet. When you ask, the hits fly in, and the Sage opens beside them: a window where cuneiform resolves into an answer with numbered citations back to the entries.
+| Where | Answers come from | Sources come from |
+| --- | --- | --- |
+| Cloudflare Worker (`worker/`) | Workers AI, free daily allowance | Wikipedia, plus Brave Search with a key |
+| `python3 app.py` | Workers AI over its REST API, or read straight from the sources | Wikipedia, plus Brave Search with a key, plus the verified tablet |
+| claude.ai artifact (`preview/nabu.html`) | Claude | Claude's own suggestions to check |
 
-## The Sage
-
-The Sage answers only from entries on the tablet and cites them as [1], [2]. With Cloudflare Workers AI credentials it writes a short answer through a Workers AI model, which is free up to the daily limit. Without them it reads the top entries aloud as written.
+## Deploy to Cloudflare
 
 ```bash
-export CF_ACCOUNT_ID=your-account-id
-export CF_API_TOKEN=token-with-workers-ai-read-permission
+npm install -g wrangler
+wrangler login
+cd worker
+wrangler secret put BRAVE_API_KEY   # optional: open-web results from Brave Search
+wrangler deploy
+```
+
+The Worker serves the page at `/`, answers at `POST /api/answer`, and reports its setup at `/api/health`. Change the model with `NABU_MODEL` in `worker/wrangler.toml`.
+
+## Run locally
+
+```bash
+export CF_ACCOUNT_ID=your-account-id          # optional: Workers AI writes the answers
+export CF_API_TOKEN=token-with-workers-ai     # optional
+export BRAVE_API_KEY=your-brave-key           # optional: open-web results
 python3 app.py
 ```
 
-`NABU_CF_MODEL` picks the model. The default is `@cf/meta/llama-3.1-8b-instruct`.
+Open http://127.0.0.1:8787. Without Cloudflare credentials, answers are read straight from the top sources and say so. The original tablet search lives at `/tablet`.
 
-If a query names a site, such as `github.com`, the Sage also offers a doorway to it.
+## Editing the page
 
-## Learning
-
-When a query has fewer than two hits, Nabu reads one Wikipedia summary through the official API and adds it to the tablet. A learned entry is always a draft. It carries the Wikipedia URL and the date it was read, and it stays a draft until someone checks it and proposes it as verified. Each query is tried once. At most `NABU_LEARN_PER_HOUR` lessons (default 12) are taken an hour. `NABU_LEARN=0` turns learning off.
-
-Grokipedia has no public API, so Nabu does not read from it.
-
-## Run
+The page has one source: `preview/template.html`. After editing it, run:
 
 ```bash
-python3 app.py
+python3 preview/build.py
 ```
 
-Open http://127.0.0.1:8787
+That writes `preview/nabu.html` (the artifact), `static/app.html` (for `app.py`), and `worker/src/page.js` (for the Worker).
 
-`nabu.db` is created on start and seeded from `seed.json` when the tablet is empty. Delete `nabu.db` to reseed.
+## The answer contract
+
+`POST /api/answer` takes `{"q": "...", "focus": "all|know|do|compare", "history": [...], "rewrite": false}` and streams plain text, one tagged line at a time. Source lines come first (`@site`, `@result`), then the answer (`@intent @title @sub @conf @tldr @point @fact @h @p @step @row @time @unsure @fresh @ask @next`). The page renders each line as it arrives. Citations like `[1]` refer to the `@site` lines in order.
 
 ## Unsourced propose
 
@@ -54,6 +65,7 @@ The response is a draft, and it says why:
 
 ## API
 
+- `POST /api/answer` — the new answer engine, described above.
 - `GET /api/ask?q=` — the Sage: answer, mode (`ai` or `tablet`), numbered sources, any slugs learned, a doorway if the query names a site, and the hits.
 - `GET /api/search?q=` — ranked hits: slug, title, kind, summary, status. An empty `q` lists the tablet.
 - `GET /api/e/:slug` — the entry and its claims.
@@ -61,14 +73,15 @@ The response is a draft, and it says why:
 
 ## Rule
 
-Verified means every stored claim has an http or https URL and a retrieval date. FTS5 is the only ranker. Nabu never scrapes pages. Wikipedia text comes only from its API, one summary per lesson, with attribution, and stays a draft. The Sage answers only from what is on the tablet.
+On the tablet, verified means every stored claim has an http or https URL and a retrieval date. FTS5 is the only ranker. Nabu never scrapes pages. Wikipedia text comes only from its API, one summary per lesson, with attribution, and stays a draft. The Sage answers only from what is on the tablet.
 
-## Preview
+## What the page does
 
-`preview/` holds a single-file Nabu built as a claude.ai artifact, where Claude writes the answers. It follows Perplexity's shape: a slim sidebar with your library, an ask box with All, Encyclopedia, How-to, and Compare focus, and a thread where each question gets source cards, an answer with citation pills, an action bar, and related questions that continue the thread.
-
-Nabu adds its own: books that float behind every page; Nabu himself as a living sage, an all-seeing eye in a turning ring of cuneiform that greets you, listens while you type, thinks while he writes, follows your cursor, and narrates each answer; answers shaped by intent (key facts, steps, comparison tables, timelines), a confidence badge, "Not settled" and "May have changed" notes, a Sources tab with live web searches, a lapis and cuneiform look in light and dark, and text that resolves from glyphs as it streams.
-
-It also borrows from Google: instant answers computed on the page with no wait (math, unit conversions, time and date, coin flips, dice), a knowledge panel beside the answer on wide screens, Google-style web results with a Links tab, and search suggestions as you type.
-
-Run `python3 preview/build.py` to produce `preview/nabu.html`.
+- **Nabu the sage:** an all-seeing eye in a turning ring of cuneiform. He greets you, listens while you type, thinks while he writes, follows your cursor, and narrates each answer.
+- **Floating books** drift behind every page and stir while an answer is written.
+- **Instant answers** with no waiting: math, unit conversions, time and date, coin flips, dice.
+- **Answers shaped by intent:** a cited lead, key points, a facts table, sections, numbered steps, comparison tables, timelines.
+- **Honesty on the page:** a confidence badge, plus "Not settled" and "May have changed" notes.
+- **Google-style extras:** a knowledge panel on wide screens, ranked web results, a Links tab, search suggestions as you type.
+- **Perplexity-style thread:** source cards, citation pills, related questions, follow-ups, focus modes, and a library of past searches.
+- Light and dark, phone and desktop.
