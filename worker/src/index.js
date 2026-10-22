@@ -6,6 +6,10 @@ import PAGE from "./page.js";
 
 const UA = "Nabu/1.0 (cited answer engine; https://github.com/T0PK1DK/nabu)";
 const MAX_Q = 500;
+const SOURCE_TTL = 6 * 60 * 60;
+const RATE_LIMIT = 30;
+const RATE_WINDOW = 10 * 60;
+const RATE_MEMORY = new Map();
 
 const SPEC = `Output only lines that start with a tag. No markdown, no blank lines, nothing else.
 @intent go|know|do|compare|quick
@@ -34,16 +38,16 @@ const FOCUS = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
     }
     if (url.pathname === "/api/health") {
-      return Response.json({ ok: true, ai: Boolean(env.AI), brave: Boolean(env.BRAVE_API_KEY), model: model(env) });
+      return Response.json({ ok: true, ai: Boolean(env.AI), brave: Boolean(env.BRAVE_API_KEY), kv: Boolean(env && env.NABU), model: model(env) });
     }
     if (request.method === "POST" && url.pathname === "/api/answer") {
-      return answer(request, env);
+      return answer(request, env, ctx);
     }
     return new Response("Not found", { status: 404 });
   },
@@ -96,6 +100,104 @@ async function brave(q, key) {
     const type = /youtube\.com|vimeo/.test(host) ? "video" : /reddit\.com|fandom\.com|stackexchange|stackoverflow|quora/.test(host) ? "community" : /wikipedia\.org|britannica/.test(host) ? "reference" : "official";
     return { name: (r.profile && r.profile.name) || host.replace(/^www\./, ""), title: clean(r.title), url: r.url, type, text: clean(r.description), snippet: oneLine(r.description, 200) };
   });
+}
+
+function kv(env) {
+  return env && env.NABU;
+}
+
+function cacheKey(q) {
+  return new Request("https://nabu.cache/sources?q=" + encodeURIComponent(q));
+}
+
+export async function readSourceCache(q, env) {
+  const key = String(q || "").toLowerCase();
+  if (!key) return null;
+  const store = kv(env);
+  if (store) {
+    try {
+      const hit = await store.get("src:" + key, "json");
+      if (Array.isArray(hit)) return hit;
+    } catch (err) {
+      console.log("nabu: kv read skipped:", err && err.message);
+    }
+  }
+  try {
+    const cached = await caches.default.match(cacheKey(key));
+    if (cached) {
+      const data = await cached.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.log("nabu: cache read skipped:", err && err.message);
+  }
+  return null;
+}
+
+export async function writeSourceCache(q, sources, env) {
+  const key = String(q || "").toLowerCase();
+  if (!key) return;
+  const body = JSON.stringify(sources);
+  const store = kv(env);
+  if (store) {
+    try {
+      await store.put("src:" + key, body, { expirationTtl: SOURCE_TTL });
+    } catch (err) {
+      console.log("nabu: kv write skipped:", err && err.message);
+    }
+  }
+  try {
+    await caches.default.put(cacheKey(key), new Response(body, {
+      headers: { "content-type": "application/json", "cache-control": "public, max-age=" + SOURCE_TTL },
+    }));
+  } catch (err) {
+    console.log("nabu: cache write skipped:", err && err.message);
+  }
+}
+
+export async function cachedGather(q, env, ctx) {
+  const hit = await readSourceCache(q, env);
+  if (hit) return hit;
+  const sources = await gather(q, env);
+  const save = writeSourceCache(q, sources, env);
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(save);
+  else await save;
+  return sources;
+}
+
+function clientIP(request) {
+  const cf = request.headers.get("cf-connecting-ip");
+  if (cf) return cf;
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return "local";
+}
+
+export async function allowAnswer(request, env) {
+  const ip = clientIP(request);
+  const now = Math.floor(Date.now() / 1000);
+  const window = Math.floor(now / RATE_WINDOW);
+  const store = kv(env);
+  if (store) {
+    try {
+      const key = "rl:" + ip + ":" + window;
+      const n = Number(await store.get(key)) || 0;
+      if (n >= RATE_LIMIT) return false;
+      await store.put(key, String(n + 1), { expirationTtl: RATE_WINDOW + 30 });
+      return true;
+    } catch (err) {
+      console.log("nabu: kv rate limit skipped:", err && err.message);
+    }
+  }
+  const bucket = RATE_MEMORY.get(ip);
+  const stamps = bucket ? bucket.filter((t) => now - t < RATE_WINDOW) : [];
+  if (stamps.length >= RATE_LIMIT) {
+    RATE_MEMORY.set(ip, stamps);
+    return false;
+  }
+  stamps.push(now);
+  RATE_MEMORY.set(ip, stamps);
+  return true;
 }
 
 export async function gather(q, env) {
@@ -155,13 +257,19 @@ function sseToText() {
   });
 }
 
-async function answer(request, env) {
+async function answer(request, env, ctx) {
+  if (!(await allowAnswer(request, env))) {
+    return new Response("Too many questions. Give the shelves a few minutes.", {
+      status: 429,
+      headers: { "retry-after": "60", "content-type": "text/plain; charset=utf-8" },
+    });
+  }
   let body;
   try { body = await request.json(); } catch { return new Response("invalid json", { status: 400 }); }
   const q = String((body && body.q) || "").trim().slice(0, MAX_Q);
   if (!q) return new Response("q is required", { status: 400 });
 
-  const sources = await gather(q, env);
+  const sources = await cachedGather(q, env, ctx);
   const head = headerLines(sources).join("\n") + "\n";
   const enc = new TextEncoder();
   const { readable, writable } = new TransformStream();

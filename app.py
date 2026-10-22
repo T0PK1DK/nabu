@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -35,6 +36,11 @@ CF_API_TOKEN = os.environ.get("CF_API_TOKEN", "").strip()
 CF_MODEL = os.environ.get("NABU_CF_MODEL", "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
 BRAVE_API_KEY = os.environ.get("BRAVE_API_KEY", "").strip()
 DOMAIN_RE = re.compile(r"(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})(/\S*)?", re.I)
+SOURCE_TTL = 6 * 3600
+RATE_LIMIT = int(os.environ.get("NABU_RATE_LIMIT", "30"))
+RATE_WINDOW = int(os.environ.get("NABU_RATE_WINDOW", "600"))
+_SOURCE_CACHE = {}
+_RATE = {}
 
 
 def connect():
@@ -625,7 +631,39 @@ def tablet_sources(q):
     return out
 
 
+def cache_get(q):
+    hit = _SOURCE_CACHE.get(q.lower())
+    if hit and time.time() - hit[0] < SOURCE_TTL:
+        return hit[1]
+    return None
+
+
+def cache_put(q, sources):
+    _SOURCE_CACHE[q.lower()] = (time.time(), sources)
+
+
+def client_ip(handler):
+    forwarded = handler.headers.get("X-Forwarded-For") or ""
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return handler.client_address[0]
+
+
+def allow_answer(ip):
+    now = time.time()
+    stamps = [t for t in _RATE.get(ip, []) if now - t < RATE_WINDOW]
+    if len(stamps) >= RATE_LIMIT:
+        _RATE[ip] = stamps
+        return False
+    stamps.append(now)
+    _RATE[ip] = stamps
+    return True
+
+
 def gather_sources(q):
+    cached = cache_get(q)
+    if cached is not None:
+        return cached
     tablet = tablet_sources(q)
     try:
         wiki = wikipedia_sources(q)
@@ -644,7 +682,9 @@ def gather_sources(q):
             if src and src["url"] not in seen:
                 seen.add(src["url"])
                 out.append(src)
-    return out[:8]
+    out = out[:8]
+    cache_put(q, out)
+    return out
 
 
 def header_lines(sources):
@@ -965,6 +1005,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"ok": False, "error": "invalid json"})
             return
         if route == "/api/answer":
+            if not allow_answer(client_ip(self)):
+                raw = b"Too many questions. Give the shelves a few minutes."
+                self.send_response(429)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Retry-After", "60")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
             if not isinstance(payload, dict):
                 self.send_json(400, {"error": "json object required"})
                 return

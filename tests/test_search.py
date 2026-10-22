@@ -39,6 +39,22 @@ class SearchFoldedFromPR3(unittest.TestCase):
         self.assertIn("empty-state", html)
         self.assertIn("Open the tablet", html)
 
+    def test_source_cache_and_rate_limit(self):
+        app._SOURCE_CACHE.clear()
+        app._RATE.clear()
+        first = app.gather_sources("nabu")
+        second = app.gather_sources("nabu")
+        self.assertIs(first, second)
+        old_limit = app.RATE_LIMIT
+        app.RATE_LIMIT = 2
+        try:
+            self.assertTrue(app.allow_answer("test-ip"))
+            self.assertTrue(app.allow_answer("test-ip"))
+            self.assertFalse(app.allow_answer("test-ip"))
+        finally:
+            app.RATE_LIMIT = old_limit
+            app._RATE.clear()
+
     def test_unsourced_propose_stays_draft(self):
         code, body = app.propose(
             {
