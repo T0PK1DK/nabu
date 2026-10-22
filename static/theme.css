@@ -1,16 +1,19 @@
 :root {
-  --room: #100e0c;
-  --slab: #231b16;
-  --clay: #14100d;
-  --ink: #f3e6d4;
-  --muted: #a89278;
-  --line: rgba(243, 230, 212, .12);
+  --room: #100c09;
+  --slab: #2a2018;
+  --clay: #16110d;
+  --ink: #f4e7d2;
+  --muted: #b1967c;
+  --line: rgba(244, 231, 210, .13);
   --bronze: #c9854a;
-  --bronze-2: #e2b07a;
+  --bronze-2: #e8b87a;
   --good: #c5d2b2;
   --draft: #e0c078;
   --disputed: #d4846a;
   --mark: #3a2a16;
+  --lamp: rgba(201, 133, 74, .2);
+  --fired: #4a3424;
+  --grain: rgba(16, 12, 9, .22);
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--room); color: var(--ink); }
@@ -21,6 +24,15 @@ body {
   min-height: 100dvh;
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
+  background-color: var(--room);
+  background-image:
+    radial-gradient(920px 460px at 10% -90px, var(--lamp), transparent 62%),
+    radial-gradient(720px 320px at 110% 8%, rgba(201, 133, 74, .08), transparent 55%),
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 11px,
+      var(--grain) 11px 12px
+    );
 }
 a { color: var(--bronze-2); }
 a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
@@ -44,6 +56,8 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   text-transform: uppercase;
   font-size: 12px;
 }
+.brand .mark { flex: none; color: var(--bronze); }
+.brand .mark path:last-child { color: var(--bronze-2); fill: currentColor; }
 .doors {
   display: flex;
   gap: 6px;
@@ -61,6 +75,21 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   padding: 0 8px;
 }
 .doors a:hover, .doors a[aria-current="page"] { color: var(--bronze-2); }
+.inscribe {
+  height: 10px;
+  margin: 14px 0 0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      var(--bronze) 0 3px,
+      transparent 3px 9px,
+      var(--bronze-2) 9px 11px,
+      transparent 11px 18px
+    );
+  opacity: .38;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 55%, transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 55%, transparent);
+}
 .status {
   display: inline-flex;
   align-items: center;
@@ -70,6 +99,10 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   letter-spacing: .14em;
   text-transform: uppercase;
   color: #8d7b68;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  padding: 3px 8px 2px;
+  background: rgba(16, 12, 9, .28);
 }
 .status i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .status.verified { color: var(--good); }
@@ -122,11 +155,12 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   background: #3a2e24;
   border-radius: 99px;
   overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(201, 133, 74, .18);
 }
 .meter i {
   display: block;
   height: 6px;
-  background: var(--bronze);
+  background: linear-gradient(90deg, var(--bronze), var(--bronze-2));
   border-radius: 99px;
 }
 .revise {
@@ -137,6 +171,22 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
   text-transform: uppercase;
   font-size: 12px;
   text-decoration: none;
+}
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 22px 80px;
+}
+.tablet {
+  background:
+    linear-gradient(180deg, rgba(243, 230, 212, .06), transparent 140px),
+    var(--slab);
+  border-radius: 3px;
+  box-shadow:
+    0 0 0 1px rgba(201, 133, 74, .3),
+    inset 0 1px 0 rgba(243, 230, 212, .12),
+    inset 0 -22px 48px rgba(16, 12, 9, .22),
+    0 28px 60px rgba(0, 0, 0, .45);
 }
 .visually-hidden {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
@@ -150,6 +200,35 @@ mark {
 @media (max-width: 640px) {
   .doors { width: 100%; justify-content: space-between; gap: 0; }
   .doors a { padding: 0 4px; font-size: 10px; letter-spacing: .1em; }
+  .page { padding: 18px 16px calc(72px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 430px) {
+  body { overflow-x: clip; }
+  .nav {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px 0;
+  }
+  .brand { letter-spacing: .16em; font-size: 11px; gap: 8px; align-self: flex-start; }
+  .brand .mark { width: 18px; height: 15px; }
+  .doors {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    justify-content: stretch;
+    gap: 0;
+  }
+  .doors a {
+    justify-content: center;
+    padding: 0 1px;
+    letter-spacing: .04em;
+    overflow: visible;
+    white-space: nowrap;
+  }
+  .chip { min-height: 44px; }
+  .page { padding: 14px 12px calc(72px + env(safe-area-inset-bottom)); }
+  .inscribe { margin-top: 8px; }
+  .status { max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }

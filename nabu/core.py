@@ -197,10 +197,12 @@ def judge(claims: list[dict], requested) -> tuple[str, str]:
 
 
 def fts_query(q: str) -> str:
-    """Build an FTS5 MATCH string that keeps stemming and last-token prefix.
+    """Build an FTS5 MATCH string that keeps stemming and prefix match.
 
     v0.2 wrapped every token in double quotes, which turned off the Porter
-    stemmer. Quoted phrases typed by the user are still honored.
+    stemmer. Quoted phrases typed by the user are still honored. Every bare
+    token of two or more characters is prefixed so a partial first word still
+    matches.
     """
     q = (q or "").strip()
     if not q:
@@ -220,9 +222,8 @@ def fts_query(q: str) -> str:
         if token:
             bare.append(token)
     if bare:
-        *head, last = bare
-        terms.extend(head)
-        terms.append(last + "*" if len(last) >= 2 else last)
+        for token in bare:
+            terms.append(token + "*" if len(token) >= 2 else token)
     return " AND ".join(terms)
 
 
@@ -573,29 +574,9 @@ def best_snippet(*candidates: str, fallback: str = "") -> str:
     return fallback
 
 
-def search(
-    q: str,
-    kind: str | None = None,
-    status: str | None = None,
-    limit: int = 20,
-    path: Path | None = None,
-) -> list[dict]:
-    q = (q or "").strip()
-    limit = max(1, min(int(limit or 20), 100))
-    conn = connect(path)
-    if not q:
-        rows = list_entries(kind=kind, status=status, path=path)
-        conn.close()
-        return rows[:limit]
-    match = fts_query(q)
-    if not match:
-        conn.close()
-        return []
-    weights = BM25_WEIGHTS
-    kind_arg = kind or ""
-    status_arg = status or ""
+def _match_rows(conn, match, weights, kind_arg, status_arg, limit):
     try:
-        rows = conn.execute(
+        return conn.execute(
             """
             SELECT
                 e.slug, e.title, e.kind, e.summary, e.status, e.updated_at,
@@ -625,7 +606,37 @@ def search(
             ),
         ).fetchall()
     except sqlite3.OperationalError:
-        rows = []
+        return []
+
+
+def search(
+    q: str,
+    kind: str | None = None,
+    status: str | None = None,
+    limit: int = 20,
+    path: Path | None = None,
+) -> list[dict]:
+    q = (q or "").strip()
+    if kind:
+        kind = normalize_kind(kind)
+    if status:
+        status = str(status).strip().lower()
+    limit = max(1, min(int(limit or 20), 100))
+    conn = connect(path)
+    if not q:
+        rows = list_entries(kind=kind, status=status, path=path)
+        conn.close()
+        return rows[:limit]
+    match = fts_query(q)
+    if not match:
+        conn.close()
+        return []
+    weights = BM25_WEIGHTS
+    kind_arg = kind or ""
+    status_arg = status or ""
+    rows = _match_rows(conn, match, weights, kind_arg, status_arg, limit)
+    if not rows and " AND " in match:
+        rows = _match_rows(conn, match.replace(" AND ", " OR "), weights, kind_arg, status_arg, limit)
     conn.close()
     hits = []
     for row in rows:

@@ -8,7 +8,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23100e0c' width='32' height='32'/%3E%3Cpath d='M8 26 L16 6 L20 26 Z' fill='%23c9854a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/theme.css">
 <style>
-  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 22px 80px; }
+  .wrap { padding-bottom: 80px; }
   .spoken { font-size: 22px; margin: 22px 0 12px; }
   .banner {
     margin: 0 0 18px; padding: 10px 12px;
@@ -31,6 +31,8 @@
   textarea[name="text"] { min-height: 88px; }
   .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
   .slug-load { min-height: 44px; }
+  input[readonly] { color: var(--muted); cursor: default; }
+  .slug-note { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: 0; text-transform: none; }
   .claim {
     border: 1px solid rgba(201,133,74,.28); padding: 12px; border-radius: 3px;
     display: grid; gap: 8px;
@@ -44,18 +46,35 @@
   button.ghost { background: transparent; color: var(--bronze-2); box-shadow: 0 0 0 1px rgba(201,133,74,.4); }
   .reason { min-height: 3em; color: var(--muted); }
   @media (max-width: 640px) {
-    .wrap { padding: 18px 16px calc(80px + env(safe-area-inset-bottom)); }
     .spoken { font-size: 18px; }
     .row { grid-template-columns: 1fr; }
     .actions { flex-direction: column; }
     .actions button { width: 100%; }
   }
+  @media (max-width: 430px) {
+    .spoken { font-size: 16px; }
+    .live-meter {
+      top: env(safe-area-inset-top);
+      margin: 0 -12px;
+      padding: 10px 12px 12px;
+    }
+    .actions {
+      margin-top: 8px;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+  }
 </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap page">
     <header class="nav">
-      <a class="brand" href="/">Nabu</a>
+      <a class="brand" href="/">
+        <svg class="mark" width="22" height="18" viewBox="0 0 28 22" aria-hidden="true">
+          <path d="M2 20 L10 2 L14 20 Z" fill="currentColor"/>
+          <path d="M13 20 L19 7 L23 20 Z" fill="currentColor" opacity=".72"/>
+        </svg>
+        Nabu
+      </a>
       <nav class="doors">
         <a href="/">Tablet</a>
         <a href="/archive">Archive</a>
@@ -63,19 +82,21 @@
         <a href="/ledger">Ledger</a>
       </nav>
     </header>
+    <div class="inscribe" aria-hidden="true"></div>
     <p class="spoken" id="voice">{{VOICE}}</p>
     {{BANNER}}
     <div class="live-meter" id="meter-wrap">{{METER}}</div>
     <form id="propose">
       <div class="row">
         <label for="slug">Slug
-          <input id="slug" name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="tablet-of-destinies" value="{{SLUG}}" autocomplete="off">
+          <input id="slug" name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="tablet-of-destinies" value="{{SLUG}}" data-original="{{ORIGINAL_SLUG}}" {{SLUG_ATTRS}} autocomplete="off">
         </label>
         <label for="kind">Kind
           <input id="kind" name="kind" value="{{KIND}}" placeholder="deity, tool, project">
         </label>
         <button type="button" class="ghost slug-load" id="load-slug">Load tablet</button>
       </div>
+      <p class="slug-note" id="slug-note" aria-live="polite">{{SLUG_NOTE}}</p>
       <label for="title">Title
         <input id="title" name="title" required value="{{TITLE}}">
       </label>
@@ -92,7 +113,8 @@
       <div class="actions">
         <button type="button" class="ghost" id="add-claim">Add claim</button>
         <button type="button" class="ghost" id="judge">Judge without saving</button>
-        <button type="submit">Cut into the tablet</button>
+        <button type="submit" id="cut">{{SUBMIT}}</button>
+        <button type="button" class="ghost" id="cut-new" {{CUT_NEW_HIDDEN}}>Cut as a new tablet</button>
       </div>
       <p class="reason" id="reason" aria-live="polite"></p>
     </form>

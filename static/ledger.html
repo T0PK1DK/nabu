@@ -8,29 +8,35 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23100e0c' width='32' height='32'/%3E%3Cpath d='M8 26 L16 6 L20 26 Z' fill='%23c9854a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/theme.css">
 <style>
-  .wrap { max-width: 760px; margin: 0 auto; padding: 28px 22px 80px; }
+  .wrap { padding-bottom: 80px; }
   .spoken { font-size: 22px; margin: 22px 0; }
   .counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; }
-  .counts div {
-    background: var(--slab); padding: 16px; border-radius: 3px;
-    box-shadow: 0 0 0 1px rgba(201,133,74,.28);
-  }
+  .counts div { padding: 16px; }
   .counts b { display: block; font-size: 28px; font-weight: 500; }
   .counts span { color: var(--muted); letter-spacing: .14em; text-transform: uppercase; font-size: 11px; }
   h2 { font-weight: 500; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--bronze-2); }
   ul { list-style: none; padding: 0; }
   li { border-top: 1px solid #3a2e24; padding: 8px 0; display: flex; justify-content: space-between; }
   @media (max-width: 640px) {
-    .wrap { padding: 18px 16px calc(80px + env(safe-area-inset-bottom)); }
     .spoken { font-size: 18px; }
     .counts { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 430px) {
+    .spoken { font-size: 16px; }
+    .counts b { font-size: 24px; }
   }
 </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="wrap page">
     <header class="nav">
-      <a class="brand" href="/">Nabu</a>
+      <a class="brand" href="/">
+        <svg class="mark" width="22" height="18" viewBox="0 0 28 22" aria-hidden="true">
+          <path d="M2 20 L10 2 L14 20 Z" fill="currentColor"/>
+          <path d="M13 20 L19 7 L23 20 Z" fill="currentColor" opacity=".72"/>
+        </svg>
+        Nabu
+      </a>
       <nav class="doors">
         <a href="/">Tablet</a>
         <a href="/archive">Archive</a>
@@ -38,11 +44,12 @@
         <a href="/ledger" aria-current="page">Ledger</a>
       </nav>
     </header>
+    <div class="inscribe" aria-hidden="true"></div>
     <p class="spoken">{{VOICE}}</p>
     <div class="counts">
-      <div><b>{{ENTRIES}}</b><span>entries</span></div>
-      <div><b>{{CLAIMS}}</b><span>sourced claims</span></div>
-      <div><b>{{REVISIONS}}</b><span>earlier cuts</span></div>
+      <div class="tablet"><b>{{ENTRIES}}</b><span>entries</span></div>
+      <div class="tablet"><b>{{CLAIMS}}</b><span>sourced claims</span></div>
+      <div class="tablet"><b>{{REVISIONS}}</b><span>earlier cuts</span></div>
     </div>
     <h2>Status</h2>
     <ul>{{STATUSES}}</ul>

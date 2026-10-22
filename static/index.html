@@ -8,22 +8,11 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect fill='%23100e0c' width='32' height='32'/%3E%3Cpath d='M8 26 L16 6 L20 26 Z' fill='%23c9854a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/static/theme.css">
 <style>
-  body {
-    background-image: radial-gradient(900px 420px at 12% -80px, rgba(201,133,74,.16), transparent 60%);
-  }
   .room { min-height: 100vh; padding: 36px 20px 56px; }
   .slab {
     width: min(860px, 100%);
     margin: 0 auto;
-    background:
-      linear-gradient(180deg, rgba(243, 230, 212, .05), transparent 140px),
-      var(--slab);
-    border-radius: 4px;
     padding: 22px 28px 10px;
-    box-shadow:
-      0 0 0 1px rgba(201, 133, 74, .28),
-      inset 0 1px 0 rgba(243, 230, 212, .1),
-      0 28px 60px rgba(0, 0, 0, .45);
   }
   .presence { display: flex; gap: 18px; align-items: center; margin: 18px 0 22px; }
   .presence img {
@@ -37,6 +26,7 @@
     flex: 1; min-width: 0; background: transparent; color: var(--ink);
     border: 0; border-radius: 0; padding: 4px 0 12px; font: 32px/1.15 inherit; outline: none;
   }
+  .field:focus-within { box-shadow: 0 2px 0 var(--bronze-2); }
   input[type="search"]::placeholder { color: rgba(168, 146, 120, .5); }
   input[type="search"]::-webkit-search-cancel-button { display: none; }
   button[type="submit"] {
@@ -77,6 +67,8 @@
   h2 { margin: 0; font-size: 23px; font-weight: 500; letter-spacing: -.02em; text-wrap: balance; }
   a.hit:hover h2 { color: var(--bronze-2); }
   .entry p, .entry .snip { margin: 6px 0 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
+  .empty-state { padding: 8px 0 18px; }
+  .empty-hint { margin: 0 0 12px; color: #8d7b68; font-size: 15px; line-height: 1.45; }
   .colophon { width: min(860px, 100%); margin: 16px auto 0; color: #6f5e4e; font-size: 14px; }
   @media (max-width: 640px) {
     .room { padding: 12px 12px calc(40px + env(safe-area-inset-bottom)); }
@@ -92,16 +84,35 @@
     .facet-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
     .chip { flex: none; }
   }
+  @media (max-width: 430px) {
+    .room { padding: 10px 10px calc(36px + env(safe-area-inset-bottom)); }
+    .slab { padding: 12px 12px 6px; }
+    .presence { gap: 10px; margin: 10px 0 12px; }
+    .presence img { width: 52px; height: 70px; }
+    .voice { font-size: 16px; }
+    input[type="search"] { font-size: 18px; }
+    h2 { font-size: 18px; }
+    .line { flex-direction: column; gap: 6px; align-items: flex-start; }
+    .num { padding-top: 2px; }
+    .facet-row {
+      margin: 0 -12px;
+      padding: 0 12px 8px;
+      padding-inline-end: 36px;
+      scrollbar-width: none;
+    }
+    .facet-row::-webkit-scrollbar { display: none; }
+    a.hit { grid-template-columns: 28px 1fr; gap: 6px 10px; padding: 14px 0 13px; }
+  }
 </style>
 </head>
 <body>
   <div class="room">
-    <article class="slab" id="slab">
+    <article class="slab tablet" id="slab">
       <header class="nav">
         <a class="brand" href="/">
-          <svg width="22" height="18" viewBox="0 0 28 22" aria-hidden="true">
-            <path d="M2 20 L10 2 L14 20 Z" fill="#c9854a"/>
-            <path d="M13 20 L19 7 L23 20 Z" fill="#e2b07a"/>
+          <svg class="mark" width="22" height="18" viewBox="0 0 28 22" aria-hidden="true">
+            <path d="M2 20 L10 2 L14 20 Z" fill="currentColor"/>
+            <path d="M13 20 L19 7 L23 20 Z" fill="currentColor" opacity=".72"/>
           </svg>
           Nabu
         </a>
@@ -112,6 +123,7 @@
           <a href="/ledger">Ledger</a>
         </nav>
       </header>
+      <div class="inscribe" aria-hidden="true"></div>
       <div class="presence">
         <img src="/static/scribe.jpg" alt="" width="86" height="114">
         <div>
