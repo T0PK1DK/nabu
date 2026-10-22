@@ -31,7 +31,7 @@ export BRAVE_API_KEY=your-brave-key           # optional: open-web results
 python3 app.py
 ```
 
-Open http://127.0.0.1:8787. Without Cloudflare credentials, answers are read straight from the top sources and say so. The original tablet search lives at `/tablet`.
+Open http://127.0.0.1:8787. Without Cloudflare credentials, answers are read straight from the top sources and say so. The original tablet search lives at `/tablet`. Partial stems match (folded from [PR #3](https://github.com/T0PK1DK/nabu/pull/3)); a miss names the asked line.
 
 ## Editing the page
 
@@ -73,7 +73,7 @@ The response is a draft, and it says why:
 
 ## Rule
 
-On the tablet, verified means every stored claim has an http or https URL and a retrieval date. FTS5 is the only ranker. Nabu never scrapes pages. Wikipedia text comes only from its API, one summary per lesson, with attribution, and stays a draft. The Sage answers only from what is on the tablet.
+On the tablet, verified means every stored claim has an http or https URL and a retrieval date. FTS5 is the only ranker. Wikipedia text comes only from its API, with attribution, and stays a draft until checked. The answer engine may also read the first 3,000 characters of two non-Wikipedia result pages so the model has more than a snippet. It never presents a guessed URL as a real source.
 
 ## What the page does
 
@@ -85,3 +85,5 @@ On the tablet, verified means every stored claim has an http or https URL and a 
 - **Google-style extras:** a knowledge panel on wide screens, ranked web results, a Links tab, search suggestions as you type.
 - **Perplexity-style thread:** source cards, citation pills, related questions, follow-ups, focus modes, and a library of past searches.
 - Light and dark, phone and desktop.
+- **Shareable searches:** `?q=` runs the question on load. `/` focuses search, `Esc` closes, `j`/`k` move between answers.
+- **Images** from Wikimedia Commons, **voice search** where the browser allows it, and **Save to the tablet** when an answer is high-confidence and well sourced.

@@ -10,3 +10,10 @@ binding = "AI"
 NABU_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 
 # Optional live web results: `wrangler secret put BRAVE_API_KEY`
+#
+# Optional KV for shared source cache and rate limits. Without it, Nabu uses
+# the Cache API for lookups and an in-isolate memory map for rate limits.
+#   wrangler kv namespace create NABU
+# [[kv_namespaces]]
+# binding = "NABU"
+# id = "replace-with-id"

@@ -6,6 +6,10 @@ import PAGE from "./page.js";
 
 const UA = "Nabu/1.0 (cited answer engine; https://github.com/T0PK1DK/nabu)";
 const MAX_Q = 500;
+const SOURCE_TTL = 6 * 60 * 60;
+const RATE_LIMIT = 30;
+const RATE_WINDOW = 10 * 60;
+const RATE_MEMORY = new Map();
 
 const SPEC = `Output only lines that start with a tag. No markdown, no blank lines, nothing else.
 @intent go|know|do|compare|quick
@@ -34,16 +38,19 @@ const FOCUS = {
 };
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/index.html")) {
       return new Response(PAGE, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=300" } });
     }
     if (url.pathname === "/api/health") {
-      return Response.json({ ok: true, ai: Boolean(env.AI), brave: Boolean(env.BRAVE_API_KEY), model: model(env) });
+      return Response.json({ ok: true, ai: Boolean(env.AI), brave: Boolean(env.BRAVE_API_KEY), kv: Boolean(env && env.NABU), model: model(env) });
     }
     if (request.method === "POST" && url.pathname === "/api/answer") {
-      return answer(request, env);
+      return answer(request, env, ctx);
+    }
+    if (request.method === "POST" && url.pathname === "/api/propose") {
+      return propose(request, env);
     }
     return new Response("Not found", { status: 404 });
   },
@@ -98,6 +105,104 @@ async function brave(q, key) {
   });
 }
 
+function kv(env) {
+  return env && env.NABU;
+}
+
+function cacheKey(q) {
+  return new Request("https://nabu.cache/sources?q=" + encodeURIComponent(q));
+}
+
+export async function readSourceCache(q, env) {
+  const key = String(q || "").toLowerCase();
+  if (!key) return null;
+  const store = kv(env);
+  if (store) {
+    try {
+      const hit = await store.get("src:" + key, "json");
+      if (Array.isArray(hit)) return hit;
+    } catch (err) {
+      console.log("nabu: kv read skipped:", err && err.message);
+    }
+  }
+  try {
+    const cached = await caches.default.match(cacheKey(key));
+    if (cached) {
+      const data = await cached.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (err) {
+    console.log("nabu: cache read skipped:", err && err.message);
+  }
+  return null;
+}
+
+export async function writeSourceCache(q, sources, env) {
+  const key = String(q || "").toLowerCase();
+  if (!key) return;
+  const body = JSON.stringify(sources);
+  const store = kv(env);
+  if (store) {
+    try {
+      await store.put("src:" + key, body, { expirationTtl: SOURCE_TTL });
+    } catch (err) {
+      console.log("nabu: kv write skipped:", err && err.message);
+    }
+  }
+  try {
+    await caches.default.put(cacheKey(key), new Response(body, {
+      headers: { "content-type": "application/json", "cache-control": "public, max-age=" + SOURCE_TTL },
+    }));
+  } catch (err) {
+    console.log("nabu: cache write skipped:", err && err.message);
+  }
+}
+
+export async function cachedGather(q, env, ctx) {
+  const hit = await readSourceCache(q, env);
+  if (hit) return hit;
+  const sources = await gather(q, env);
+  const save = writeSourceCache(q, sources, env);
+  if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(save);
+  else await save;
+  return sources;
+}
+
+function clientIP(request) {
+  const cf = request.headers.get("cf-connecting-ip");
+  if (cf) return cf;
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0].trim();
+  return "local";
+}
+
+export async function allowAnswer(request, env) {
+  const ip = clientIP(request);
+  const now = Math.floor(Date.now() / 1000);
+  const window = Math.floor(now / RATE_WINDOW);
+  const store = kv(env);
+  if (store) {
+    try {
+      const key = "rl:" + ip + ":" + window;
+      const n = Number(await store.get(key)) || 0;
+      if (n >= RATE_LIMIT) return false;
+      await store.put(key, String(n + 1), { expirationTtl: RATE_WINDOW + 30 });
+      return true;
+    } catch (err) {
+      console.log("nabu: kv rate limit skipped:", err && err.message);
+    }
+  }
+  const bucket = RATE_MEMORY.get(ip);
+  const stamps = bucket ? bucket.filter((t) => now - t < RATE_WINDOW) : [];
+  if (stamps.length >= RATE_LIMIT) {
+    RATE_MEMORY.set(ip, stamps);
+    return false;
+  }
+  stamps.push(now);
+  RATE_MEMORY.set(ip, stamps);
+  return true;
+}
+
 export async function gather(q, env) {
   const jobs = [wikipedia(q).catch(() => [])];
   if (env.BRAVE_API_KEY) jobs.push(brave(q, env.BRAVE_API_KEY).catch(() => []));
@@ -109,7 +214,75 @@ export async function gather(q, env) {
       if (s && !seen.has(s.url)) { seen.add(s.url); out.push(s); }
     }
   }
-  return out.slice(0, 8);
+  const picked = out.slice(0, 8);
+  await enrichPages(picked);
+  return picked;
+}
+
+function isWikiHost(url) {
+  try {
+    return /(^|\.)wikipedia\.org$/i.test(new URL(url).hostname.replace(/^www\./, ""));
+  } catch {
+    return false;
+  }
+}
+
+export function htmlToText(html) {
+  return clean(String(html || "")
+    .replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " "));
+}
+
+export async function readPage(url) {
+  try {
+    if (!url || isWikiHost(url)) return "";
+    const res = await fetch(url, {
+      headers: { "user-agent": UA, accept: "text/html,application/xhtml+xml" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return "";
+    const ctype = (res.headers.get("content-type") || "").toLowerCase();
+    if (ctype && !/text\/html|application\/xhtml|text\/plain/.test(ctype)) return "";
+    const html = await res.text();
+    return htmlToText(html).slice(0, 3000);
+  } catch {
+    return "";
+  }
+}
+
+export async function enrichPages(sources) {
+  const extra = sources.filter((s) => s && s.url && !isWikiHost(s.url)).slice(0, 2);
+  await Promise.all(extra.map(async (s) => {
+    const text = await readPage(s.url);
+    if (text && text.length > String(s.text || "").length) s.text = text;
+  }));
+  return sources;
+}
+
+export function keepKnownSources(line, urls) {
+  const m = /^@(site|result)\s+(.+)$/i.exec(String(line || "").trim());
+  if (!m) return true;
+  const parts = m[2].split("|").map((p) => p.trim());
+  const url = parts[1] || "";
+  return urls.has(url);
+}
+
+function dropInvented(urls) {
+  let buf = "";
+  return new TransformStream({
+    transform(chunk, controller) {
+      buf += typeof chunk === "string" ? chunk : new TextDecoder().decode(chunk, { stream: true });
+      const parts = buf.split("\n");
+      buf = parts.pop();
+      for (const line of parts) {
+        if (keepKnownSources(line, urls)) controller.enqueue(line + "\n");
+      }
+    },
+    flush(controller) {
+      if (buf && keepKnownSources(buf, urls)) controller.enqueue(buf);
+    },
+  });
 }
 
 export function headerLines(sources) {
@@ -120,7 +293,7 @@ export function headerLines(sources) {
 }
 
 export function buildMessages(q, sources, body) {
-  const ctx = sources.slice(0, 5).map((s, i) => `[${i + 1}] ${s.title || s.name} (${s.url})\n${String(s.text || "").slice(0, 1500)}`).join("\n\n");
+  const ctx = sources.slice(0, 5).map((s, i) => `[${i + 1}] ${s.title || s.name} (${s.url})\n${String(s.text || "").slice(0, 3000)}`).join("\n\n");
   const system = `You are Nabu, a search engine and encyclopedia. You answer from the numbered sources below, citing them as [n]. If the sources do not cover something, you may add well-established general knowledge without a citation, and lower @conf when you rely on it. Be specific: names, numbers, dates. No filler.\n\n${SPEC}\n\nSources:\n${ctx || "(no sources were found; answer from general knowledge, set @conf low, and say so in @unsure)"}`;
   const history = Array.isArray(body.history) ? body.history.slice(-10).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string").map((m) => ({ role: m.role, content: m.content.slice(0, 6000) })) : [];
   const ask = (history.length ? "Follow-up question: " : "Question: ") + q + (FOCUS[body.focus] ? "\n" + FOCUS[body.focus] : "") + (body.rewrite ? "\nWrite a fresh version of this answer." : "");
@@ -139,6 +312,77 @@ export function extractive(q, sources) {
   return lines;
 }
 
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function isHttpUrl(url) {
+  return /^https?:\/\//i.test(url || "");
+}
+
+export function judge(claims, requested) {
+  const problems = [];
+  if (!claims.length) problems.push("the entry has no claims");
+  claims.forEach((c, i) => {
+    if (!c.url) problems.push("claim " + (i + 1) + " has no source URL");
+    else if (!isHttpUrl(c.url)) problems.push("claim " + (i + 1) + " has no http(s) source URL");
+    if (!c.retrieved) problems.push("claim " + (i + 1) + " has no retrieval date");
+  });
+  if (problems.length) {
+    return { status: "draft", reason: "Stored as draft because " + problems.join("; ") + ". Unsourced text cannot be marked verified." };
+  }
+  if (requested === "draft") return { status: "draft", reason: "Stored as draft as requested. Every claim has a source URL and a retrieval date." };
+  if (requested === "disputed") return { status: "disputed", reason: "Stored as disputed. Every claim has a source URL and a retrieval date." };
+  return { status: "verified", reason: "Verified. Every claim has a source URL and a retrieval date." };
+}
+
+async function propose(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return Response.json({ ok: false, error: "invalid json" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return Response.json({ ok: false, error: "json object required" }, { status: 400 });
+  const title = String(body.title || "").trim();
+  const summary = String(body.summary || "").trim();
+  const text = String(body.body || "").trim();
+  const slug = String(body.slug || "").trim().toLowerCase().replace(/\s+/g, "-");
+  const kind = String(body.kind || "note").trim() || "note";
+  if (!title || !summary || !text || !slug) return Response.json({ ok: false, error: "slug, title, summary, and body are required" }, { status: 400 });
+  if (!SLUG_RE.test(slug)) return Response.json({ ok: false, error: "slug must be lowercase letters, numbers, and hyphens" }, { status: 400 });
+  const raw = "claims" in body ? body.claims : [];
+  if (!Array.isArray(raw)) return Response.json({ ok: false, error: "claims must be a list" }, { status: 400 });
+  const claims = [];
+  for (const claim of raw) {
+    if (!claim || typeof claim !== "object") return Response.json({ ok: false, error: "each claim must be an object" }, { status: 400 });
+    const ctext = String(claim.text || "").trim();
+    const url = String(claim.url || "").trim();
+    const retrieved = String(claim.retrieved || "").trim();
+    if (!ctext && !url && !retrieved) continue;
+    if (!ctext) return Response.json({ ok: false, error: "a claim needs text" }, { status: 400 });
+    claims.push({ text: ctext, url, retrieved });
+  }
+  let requested = body.status;
+  if (typeof requested === "string") requested = requested.trim().toLowerCase() || null;
+  else if (requested != null) return Response.json({ ok: false, error: "status must be draft, verified, or disputed" }, { status: 400 });
+  if (requested && requested !== "draft" && requested !== "verified" && requested !== "disputed") {
+    return Response.json({ ok: false, error: "status must be draft, verified, or disputed" }, { status: 400 });
+  }
+  const judged = judge(claims, requested);
+  const out = { ok: true, slug, status: judged.status, reason: judged.reason };
+  if (requested && requested !== judged.status) out.requested_status = requested;
+  const store = kv(env);
+  if (store) {
+    try {
+      await store.put("entry:" + slug, JSON.stringify({
+        slug, title, kind, summary, body: text, status: judged.status, claims, updated_at: new Date().toISOString(),
+      }), { expirationTtl: 60 * 60 * 24 * 90 });
+      out.stored = true;
+    } catch (err) {
+      console.log("nabu: propose store skipped:", err && err.message);
+      out.stored = false;
+    }
+  } else {
+    out.stored = false;
+  }
+  return Response.json(out);
+}
+
 function sseToText() {
   let buf = "";
   return new TransformStream({
@@ -155,13 +399,20 @@ function sseToText() {
   });
 }
 
-async function answer(request, env) {
+async function answer(request, env, ctx) {
+  if (!(await allowAnswer(request, env))) {
+    return new Response("Too many questions. Give the shelves a few minutes.", {
+      status: 429,
+      headers: { "retry-after": "60", "content-type": "text/plain; charset=utf-8" },
+    });
+  }
   let body;
   try { body = await request.json(); } catch { return new Response("invalid json", { status: 400 }); }
   const q = String((body && body.q) || "").trim().slice(0, MAX_Q);
   if (!q) return new Response("q is required", { status: 400 });
 
-  const sources = await gather(q, env);
+  const sources = await cachedGather(q, env, ctx);
+  const urls = new Set(sources.map((s) => s.url));
   const head = headerLines(sources).join("\n") + "\n";
   const enc = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -172,7 +423,7 @@ async function answer(request, env) {
     try {
       if (!env.AI) throw new Error("no AI binding");
       const stream = await env.AI.run(model(env), { messages: buildMessages(q, sources, body), stream: true, max_tokens: 1400, temperature: 0.3 });
-      const reader = stream.pipeThrough(sseToText()).getReader();
+      const reader = stream.pipeThrough(sseToText()).pipeThrough(dropInvented(urls)).getReader();
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;

@@ -51,7 +51,18 @@
     border-radius: 2px;
     box-shadow: 0 0 0 1px rgba(201, 133, 74, .5);
   }
-  .status { font-size: 12px; letter-spacing: .16em; text-transform: uppercase; }
+  .status {
+    font-size: 12px; letter-spacing: .16em; text-transform: uppercase;
+    border: 1px solid currentColor; border-radius: 2px; padding: 3px 8px 2px;
+    background: rgba(16, 12, 9, .28);
+  }
+  .inscribe {
+    height: 10px; margin: 0 0 18px;
+    background: repeating-linear-gradient(90deg, var(--bronze) 0 3px, transparent 3px 9px, var(--bronze-2) 9px 11px, transparent 11px 18px);
+    opacity: .38;
+    -webkit-mask-image: linear-gradient(90deg, #000 0, #000 55%, transparent);
+    mask-image: linear-gradient(90deg, #000 0, #000 55%, transparent);
+  }
   .status.verified { color: var(--good); }
   .status.draft { color: var(--draft); }
   .status.disputed { color: var(--disputed); }
@@ -76,12 +87,19 @@
     .wrap { padding: 22px 18px 64px; }
     .summary { font-size: 18px; }
   }
+  @media (max-width: 430px) {
+    .wrap { padding: 14px 12px calc(56px + env(safe-area-inset-bottom)); }
+    h1 { font-size: 28px; }
+    .summary { font-size: 16px; }
+    .body { font-size: 16px; }
+    .src, .body { overflow-wrap: anywhere; }
+  }
 </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <a class="brand" href="/">
+      <a class="brand" href="/tablet">
         <svg width="22" height="18" viewBox="0 0 28 22" aria-hidden="true">
           <path d="M2 20 L10 2 L14 20 Z" fill="#c9854a"/>
           <path d="M13 20 L19 7 L23 20 Z" fill="#e2b07a"/>
@@ -90,6 +108,7 @@
       </a>
       <span class="status {{STATUS}}">{{STATUS}}</span>
     </header>
+    <div class="inscribe" aria-hidden="true"></div>
     <p class="spoken"><img src="/static/scribe.jpg" alt="" width="40" height="52">{{VOICE}}</p>
     <p class="kind">{{KIND}}</p>
     <h1>{{TITLE}}</h1>

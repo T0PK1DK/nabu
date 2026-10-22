@@ -19,6 +19,8 @@ page = (
     '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
     '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
     '<meta name="description" content="Nabu: a cited answer engine and encyclopedia.">\n'
+    '<meta name="theme-color" content="#fbfaf6" media="(prefers-color-scheme: light)">\n'
+    '<meta name="theme-color" content="#171818" media="(prefers-color-scheme: dark)">\n'
     "</head>\n<body>\n" + body + "\n</body>\n</html>\n"
 )
 (ROOT / "static" / "app.html").write_text(page, encoding="utf-8")

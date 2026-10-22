@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sqlite3
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -35,6 +36,11 @@ CF_API_TOKEN = os.environ.get("CF_API_TOKEN", "").strip()
 CF_MODEL = os.environ.get("NABU_CF_MODEL", "@cf/meta/llama-3.3-70b-instruct-fp8-fast").strip()
 BRAVE_API_KEY = os.environ.get("BRAVE_API_KEY", "").strip()
 DOMAIN_RE = re.compile(r"(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})(/\S*)?", re.I)
+SOURCE_TTL = 6 * 3600
+RATE_LIMIT = int(os.environ.get("NABU_RATE_LIMIT", "30"))
+RATE_WINDOW = int(os.environ.get("NABU_RATE_WINDOW", "600"))
+_SOURCE_CACHE = {}
+_RATE = {}
 
 
 def connect():
@@ -232,12 +238,34 @@ def get_entry(slug):
 
 
 def fts_match(q):
-    parts = []
-    for part in q.split():
+    """FTS5 MATCH: keep stemming, prefix every bare token of two or more letters.
+
+    Folded from PR #3. Quoted phrases stay exact. An empty AND query is retried
+    as OR in search(), so a partial first word still finds the line.
+    """
+    terms = []
+    for part in (q or "").split():
         cleaned = part.replace('"', "")
         if cleaned:
-            parts.append('"' + cleaned + '"')
-    return " ".join(parts)
+            terms.append(cleaned + "*" if len(cleaned) >= 2 else cleaned)
+    return " AND ".join(terms)
+
+
+def _match_rows(conn, match):
+    try:
+        return conn.execute(
+            """
+            SELECT e.slug, e.title, e.kind, e.summary, e.status
+            FROM entries_fts
+            JOIN entries e ON e.slug = entries_fts.slug
+            WHERE entries_fts MATCH ?
+            ORDER BY bm25(entries_fts)
+            LIMIT 20
+            """,
+            (match,),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return []
 
 
 def search(q):
@@ -253,20 +281,9 @@ def search(q):
     if not match:
         conn.close()
         return []
-    try:
-        rows = conn.execute(
-            """
-            SELECT e.slug, e.title, e.kind, e.summary, e.status
-            FROM entries_fts
-            JOIN entries e ON e.slug = entries_fts.slug
-            WHERE entries_fts MATCH ?
-            ORDER BY bm25(entries_fts)
-            LIMIT 20
-            """,
-            (match,),
-        ).fetchall()
-    except sqlite3.OperationalError:
-        rows = []
+    rows = _match_rows(conn, match)
+    if not rows and " AND " in match:
+        rows = _match_rows(conn, match.replace(" AND ", " OR "))
     conn.close()
     return [dict(r) for r in rows]
 
@@ -614,7 +631,87 @@ def tablet_sources(q):
     return out
 
 
+def cache_get(q):
+    hit = _SOURCE_CACHE.get(q.lower())
+    if hit and time.time() - hit[0] < SOURCE_TTL:
+        return hit[1]
+    return None
+
+
+def cache_put(q, sources):
+    _SOURCE_CACHE[q.lower()] = (time.time(), sources)
+
+
+def client_ip(handler):
+    forwarded = handler.headers.get("X-Forwarded-For") or ""
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return handler.client_address[0]
+
+
+def allow_answer(ip):
+    now = time.time()
+    stamps = [t for t in _RATE.get(ip, []) if now - t < RATE_WINDOW]
+    if len(stamps) >= RATE_LIMIT:
+        _RATE[ip] = stamps
+        return False
+    stamps.append(now)
+    _RATE[ip] = stamps
+    return True
+
+
+def html_to_text(raw):
+    text = re.sub(r"(?is)<(script|style|noscript|svg)\b.*?>.*?</\1>", " ", raw or "")
+    text = re.sub(r"(?s)<!--.*?-->", " ", text)
+    return plain(text)[:3000]
+
+
+def is_wiki_host(url):
+    host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    return host.endswith("wikipedia.org")
+
+
+def read_page(url):
+    """First 3,000 characters of a non-Wikipedia result page, or empty."""
+    if not is_http_url(url) or is_wiki_host(url):
+        return ""
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={"User-Agent": USER_AGENT, "Accept": "text/html,application/xhtml+xml"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as res:
+            ctype = (res.headers.get("Content-Type") or "").lower()
+            if ctype and not re.search(r"text/html|application/xhtml|text/plain", ctype):
+                return ""
+            raw = res.read(80_000).decode("utf-8", "replace")
+        return html_to_text(raw)
+    except (urllib.error.URLError, OSError, ValueError, TimeoutError):
+        return ""
+
+
+def enrich_pages(sources):
+    extra = [s for s in sources if s.get("url") and not is_wiki_host(s["url"])][:2]
+    for src in extra:
+        text = read_page(src["url"])
+        if text and len(text) > len(src.get("text") or ""):
+            src["text"] = text
+    return sources
+
+
+def keep_known_sources(line, urls):
+    m = re.match(r"@(site|result)\s+(.+)$", (line or "").strip(), re.I)
+    if not m:
+        return True
+    parts = [p.strip() for p in m.group(2).split("|")]
+    url = parts[1] if len(parts) > 1 else ""
+    return url in urls
+
+
 def gather_sources(q):
+    cached = cache_get(q)
+    if cached is not None:
+        return cached
     tablet = tablet_sources(q)
     try:
         wiki = wikipedia_sources(q)
@@ -633,7 +730,10 @@ def gather_sources(q):
             if src and src["url"] not in seen:
                 seen.add(src["url"])
                 out.append(src)
-    return out[:8]
+    out = out[:8]
+    enrich_pages(out)
+    cache_put(q, out)
+    return out
 
 
 def header_lines(sources):
@@ -643,7 +743,7 @@ def header_lines(sources):
 
 
 def answer_messages(q, sources, payload):
-    ctx = "\n\n".join(f"[{i}] {s.get('title') or s['name']} ({s['url']})\n{s['text'][:1500]}" for i, s in enumerate(sources[:5], 1))
+    ctx = "\n\n".join(f"[{i}] {s.get('title') or s['name']} ({s['url']})\n{s['text'][:3000]}" for i, s in enumerate(sources[:5], 1))
     system = (
         "You are Nabu, a search engine and encyclopedia. You answer from the numbered sources below, citing them as [n]. "
         "If the sources do not cover something, you may add well-established general knowledge without a citation, and lower @conf when you rely on it. "
@@ -696,8 +796,10 @@ def answer(payload):
             text = ((data.get("result") or {}).get("response") or "").strip() or None
         except (urllib.error.URLError, OSError, ValueError) as exc:
             print(f"[nabu] Workers AI failed: {exc}")
+    urls = {s["url"] for s in sources}
     body = text.splitlines() if text else extractive_answer(q, sources)
-    return "\n".join(head + [line for line in body if line.strip()])
+    kept = [line for line in body if line.strip() and keep_known_sources(line, urls)]
+    return "\n".join(head + kept)
 
 
 def esc(value):
@@ -714,7 +816,7 @@ def voice_for(q, count):
     if not q:
         return "The tablet is open. Ask, and I will find the line."
     if count == 0:
-        return "I turned the tablet. That is not written."
+        return "I turned the tablet. That line is not written."
     if count == 1:
         return "One line was already there."
     words = {
@@ -733,9 +835,21 @@ def voice_for(q, count):
     return f"{words.get(count, str(count))} lines were already written."
 
 
-def render_hits(hits):
+def render_empty(q):
+    asked = q or "that line"
+    return (
+        '<div class="empty-state" role="status">'
+        f'<p class="empty">Nothing on the tablet for “{esc(asked)}”.</p>'
+        '<p class="empty-hint">The clay only answers what is already cut. '
+        "Try a shorter stem, or open the whole tablet.</p>"
+        '<a class="chip" href="/tablet">Open the tablet</a>'
+        "</div>"
+    )
+
+
+def render_hits(hits, q=""):
     if not hits:
-        return '<p class="empty">Nothing on the tablet for that.</p>'
+        return render_empty(q)
     parts = []
     for i, hit in enumerate(hits, 1):
         status = hit["status"]
@@ -755,7 +869,7 @@ def render_hits(hits):
 def render_home(q):
     q = (q or "").strip()
     hits = search(q)
-    if q and not hits:
+    if not hits:
         label = "No hits"
     elif q:
         label = "Hits"
@@ -765,7 +879,7 @@ def render_home(q):
         "index.html",
         {
             "QUERY": esc(q),
-            "RESULTS": render_hits(hits),
+            "RESULTS": render_hits(hits, q),
             "LABEL": esc(label),
             "COUNT": f"{len(hits):02d}",
             "VOICE": esc(voice_for(q, len(hits))),
@@ -942,6 +1056,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"ok": False, "error": "invalid json"})
             return
         if route == "/api/answer":
+            if not allow_answer(client_ip(self)):
+                raw = b"Too many questions. Give the shelves a few minutes."
+                self.send_response(429)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Retry-After", "60")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+                return
             if not isinstance(payload, dict):
                 self.send_json(400, {"error": "json object required"})
                 return
