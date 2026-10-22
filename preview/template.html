@@ -966,6 +966,12 @@
       sb.appendChild(st); sb.appendChild(el("span", null, this.sources.length + " sources")); sb.addEventListener("click", function () { showTab("sources"); }); acts.appendChild(sb);
     }
     if (/^(high|medium|low)$/.test(this.conf || "")) { var c = el("span", "conf " + this.conf); c.appendChild(el("i")); c.appendChild(document.createTextNode(this.conf.charAt(0).toUpperCase() + this.conf.slice(1) + " confidence")); acts.appendChild(c); }
+    var wiki = wikiSources(this.sources);
+    if (this.conf === "high" && wiki.length >= 2) {
+      var sv = el("button", "act"); sv.type = "button"; sv.appendChild(svg(I.know)); sv.appendChild(el("span", null, "Save to the tablet"));
+      sv.addEventListener("click", function () { saveToTablet(self, sv); });
+      acts.appendChild(sv);
+    }
   };
   Turn.prototype.fail = function (code) {
     this.scribe.remove(); this.trace.replaceChildren(); setSage(this.sage, "idle"); this.speak("The shelves are quiet for the moment.");
@@ -976,6 +982,51 @@
     this.answer.appendChild(el("div", "err", msg));
   };
 
+  function wikiSources(sources) {
+    return (sources || []).filter(function (s) { return /wikipedia\.org/i.test(s.url || ""); });
+  }
+  function slugify(text) {
+    return String(text || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "entry";
+  }
+  function saveToTablet(turn, btn) {
+    var wiki = wikiSources(turn.sources);
+    var today = new Date().toISOString().slice(0, 10);
+    var title = turn.title || turn.q;
+    var lead = (turn.lead || turn.sub || title).replace(/\s*\[\d+\]/g, "").trim();
+    var claims = wiki.slice(0, 5).map(function (s, i) {
+      return { text: (i === 0 && lead) ? lead : (s.why || s.name), url: s.url, retrieved: today };
+    });
+    btn.disabled = true;
+    btn.lastChild.textContent = "Cutting…";
+    fetch("api/propose", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        slug: slugify(title),
+        title: title,
+        kind: "note",
+        summary: lead,
+        body: lead + "\n\nSaved from a Nabu answer on " + today + ". Check the claims against the sources before treating this as settled.",
+        status: "verified",
+        claims: claims
+      })
+    }).then(function (res) { return res.json(); }).then(function (data) {
+      if (data && data.ok) {
+        btn.lastChild.textContent = data.status === "verified" ? "On the tablet" : "Kept as a draft";
+        turn.speak(data.status === "verified"
+          ? "Cut into the tablet. Every claim has a source."
+          : (data.reason || "Kept as a draft. Unsourced text cannot be marked verified."));
+      } else {
+        btn.disabled = false;
+        btn.lastChild.textContent = "Save to the tablet";
+        turn.speak((data && data.error) || "The tablet would not take the cut.");
+      }
+    }).catch(function () {
+      btn.disabled = false;
+      btn.lastChild.textContent = "Save to the tablet";
+      turn.speak("The tablet is quiet. Try again in a moment.");
+    });
+  }
   function webRow(r) {
     var a = el("a", "wr"); a.href = r.url; a.target = "_blank"; a.rel = "noopener";
     var cr = el("span", "crumb"); cr.appendChild(favNode(r.url));
@@ -1176,7 +1227,7 @@
   }
 
   function home() {
-    token++; if (ctl) ctl.abort();
+    token++; if (ctl) ctl.abort(); stopListen();
     $("tview").hidden = true; $("dock").hidden = true; $("home").hidden = false; $("top-new").hidden = true;
     $("nav-home").setAttribute("aria-current", "page"); $("nav-tablet").removeAttribute("aria-current");
     setSage($("home-sage"), "idle"); document.body.classList.add("at-home"); $("home-q").value = ""; growHome(); window.scrollTo(0, 0); $("home-q").focus();

@@ -65,6 +65,32 @@ class SearchFoldedFromPR3(unittest.TestCase):
             app.RATE_LIMIT = old_limit
             app._RATE.clear()
 
+    def test_sourced_propose_can_verify(self):
+        code, body = app.propose(
+            {
+                "slug": "high-conf-note",
+                "title": "Nabu",
+                "kind": "note",
+                "summary": "A sourced line.",
+                "body": "Saved from a high-confidence answer.",
+                "status": "verified",
+                "claims": [
+                    {
+                        "text": "Nabu is a cited answer engine.",
+                        "url": "https://en.wikipedia.org/wiki/Nabu",
+                        "retrieved": "2026-10-22",
+                    },
+                    {
+                        "text": "He is also a Babylonian scribe-god.",
+                        "url": "https://en.wikipedia.org/wiki/Nabu_(god)",
+                        "retrieved": "2026-10-22",
+                    },
+                ],
+            }
+        )
+        self.assertEqual(code, 200)
+        self.assertEqual(body["status"], "verified")
+
     def test_unsourced_propose_stays_draft(self):
         code, body = app.propose(
             {

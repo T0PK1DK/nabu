@@ -49,6 +49,9 @@ export default {
     if (request.method === "POST" && url.pathname === "/api/answer") {
       return answer(request, env, ctx);
     }
+    if (request.method === "POST" && url.pathname === "/api/propose") {
+      return propose(request, env);
+    }
     return new Response("Not found", { status: 404 });
   },
 };
@@ -307,6 +310,77 @@ export function extractive(q, sources) {
   sources.slice(1, 4).forEach((s, i) => { if (s.text) lines.push("@point " + oneLine(s.text, 200) + " [" + (i + 2) + "]"); });
   lines.push("@unsure This answer was read straight from the sources; the writing model was unavailable.");
   return lines;
+}
+
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+function isHttpUrl(url) {
+  return /^https?:\/\//i.test(url || "");
+}
+
+export function judge(claims, requested) {
+  const problems = [];
+  if (!claims.length) problems.push("the entry has no claims");
+  claims.forEach((c, i) => {
+    if (!c.url) problems.push("claim " + (i + 1) + " has no source URL");
+    else if (!isHttpUrl(c.url)) problems.push("claim " + (i + 1) + " has no http(s) source URL");
+    if (!c.retrieved) problems.push("claim " + (i + 1) + " has no retrieval date");
+  });
+  if (problems.length) {
+    return { status: "draft", reason: "Stored as draft because " + problems.join("; ") + ". Unsourced text cannot be marked verified." };
+  }
+  if (requested === "draft") return { status: "draft", reason: "Stored as draft as requested. Every claim has a source URL and a retrieval date." };
+  if (requested === "disputed") return { status: "disputed", reason: "Stored as disputed. Every claim has a source URL and a retrieval date." };
+  return { status: "verified", reason: "Verified. Every claim has a source URL and a retrieval date." };
+}
+
+async function propose(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return Response.json({ ok: false, error: "invalid json" }, { status: 400 }); }
+  if (!body || typeof body !== "object") return Response.json({ ok: false, error: "json object required" }, { status: 400 });
+  const title = String(body.title || "").trim();
+  const summary = String(body.summary || "").trim();
+  const text = String(body.body || "").trim();
+  const slug = String(body.slug || "").trim().toLowerCase().replace(/\s+/g, "-");
+  const kind = String(body.kind || "note").trim() || "note";
+  if (!title || !summary || !text || !slug) return Response.json({ ok: false, error: "slug, title, summary, and body are required" }, { status: 400 });
+  if (!SLUG_RE.test(slug)) return Response.json({ ok: false, error: "slug must be lowercase letters, numbers, and hyphens" }, { status: 400 });
+  const raw = "claims" in body ? body.claims : [];
+  if (!Array.isArray(raw)) return Response.json({ ok: false, error: "claims must be a list" }, { status: 400 });
+  const claims = [];
+  for (const claim of raw) {
+    if (!claim || typeof claim !== "object") return Response.json({ ok: false, error: "each claim must be an object" }, { status: 400 });
+    const ctext = String(claim.text || "").trim();
+    const url = String(claim.url || "").trim();
+    const retrieved = String(claim.retrieved || "").trim();
+    if (!ctext && !url && !retrieved) continue;
+    if (!ctext) return Response.json({ ok: false, error: "a claim needs text" }, { status: 400 });
+    claims.push({ text: ctext, url, retrieved });
+  }
+  let requested = body.status;
+  if (typeof requested === "string") requested = requested.trim().toLowerCase() || null;
+  else if (requested != null) return Response.json({ ok: false, error: "status must be draft, verified, or disputed" }, { status: 400 });
+  if (requested && requested !== "draft" && requested !== "verified" && requested !== "disputed") {
+    return Response.json({ ok: false, error: "status must be draft, verified, or disputed" }, { status: 400 });
+  }
+  const judged = judge(claims, requested);
+  const out = { ok: true, slug, status: judged.status, reason: judged.reason };
+  if (requested && requested !== judged.status) out.requested_status = requested;
+  const store = kv(env);
+  if (store) {
+    try {
+      await store.put("entry:" + slug, JSON.stringify({
+        slug, title, kind, summary, body: text, status: judged.status, claims, updated_at: new Date().toISOString(),
+      }), { expirationTtl: 60 * 60 * 24 * 90 });
+      out.stored = true;
+    } catch (err) {
+      console.log("nabu: propose store skipped:", err && err.message);
+      out.stored = false;
+    }
+  } else {
+    out.stored = false;
+  }
+  return Response.json(out);
 }
 
 function sseToText() {
