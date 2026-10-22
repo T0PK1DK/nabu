@@ -361,9 +361,14 @@ class HttpTests(TmpTablet):
         self.assertIn('value="Nabu"', html)
         self.assertIn("https://oracc.museum.upenn.edu", html)
         self.assertIn("Editing", html)
+        self.assertIn("Replace this tablet", html)
+        self.assertIn("readonly", html)
+        self.assertIn("Back to this tablet", html)
         missing_code, missing = self._html("/propose?slug=not-written-yet")
         self.assertEqual(missing_code, 200)
         self.assertIn("not on the tablet yet", missing)
+        self.assertIn("Cut into the tablet", missing)
+        self.assertNotIn("Replace this tablet", missing)
 
     def test_html_404_for_unknown_page(self):
         code, html = self._html("/no-such-door")

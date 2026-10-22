@@ -31,6 +31,8 @@
   textarea[name="text"] { min-height: 88px; }
   .row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; align-items: end; }
   .slug-load { min-height: 44px; }
+  input[readonly] { color: var(--muted); cursor: default; }
+  .slug-note { margin: 0; color: var(--muted); font-size: 13px; letter-spacing: 0; text-transform: none; }
   .claim {
     border: 1px solid rgba(201,133,74,.28); padding: 12px; border-radius: 3px;
     display: grid; gap: 8px;
@@ -76,13 +78,14 @@
     <form id="propose">
       <div class="row">
         <label for="slug">Slug
-          <input id="slug" name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="tablet-of-destinies" value="{{SLUG}}" autocomplete="off">
+          <input id="slug" name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" placeholder="tablet-of-destinies" value="{{SLUG}}" data-original="{{ORIGINAL_SLUG}}" {{SLUG_ATTRS}} autocomplete="off">
         </label>
         <label for="kind">Kind
           <input id="kind" name="kind" value="{{KIND}}" placeholder="deity, tool, project">
         </label>
         <button type="button" class="ghost slug-load" id="load-slug">Load tablet</button>
       </div>
+      <p class="slug-note" id="slug-note" aria-live="polite">{{SLUG_NOTE}}</p>
       <label for="title">Title
         <input id="title" name="title" required value="{{TITLE}}">
       </label>
@@ -99,7 +102,8 @@
       <div class="actions">
         <button type="button" class="ghost" id="add-claim">Add claim</button>
         <button type="button" class="ghost" id="judge">Judge without saving</button>
-        <button type="submit">Cut into the tablet</button>
+        <button type="submit" id="cut">{{SUBMIT}}</button>
+        <button type="button" class="ghost" id="cut-new" {{CUT_NEW_HIDDEN}}>Cut as a new tablet</button>
       </div>
       <p class="reason" id="reason" aria-live="polite"></p>
     </form>

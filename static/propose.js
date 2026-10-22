@@ -4,8 +4,42 @@
   var reason = document.getElementById("reason");
   var voice = document.getElementById("voice");
   var meterWrap = document.getElementById("meter-wrap");
+  var slugNote = document.getElementById("slug-note");
+  var cut = document.getElementById("cut");
+  var cutNew = document.getElementById("cut-new");
+  var loadBtn = document.getElementById("load-slug");
   var today = window.NABU_TODAY || "";
   var timer = 0;
+  var originalSlug = (form.slug.getAttribute("data-original") || "").trim();
+
+  function setNote(text) {
+    if (slugNote) slugNote.textContent = text || "";
+  }
+
+  function setRevising(slug, title) {
+    originalSlug = slug || "";
+    form.slug.setAttribute("data-original", originalSlug);
+    form.slug.readOnly = !!originalSlug;
+    if (cut) cut.textContent = originalSlug ? "Replace this tablet" : "Cut into the tablet";
+    if (cutNew) cutNew.hidden = !originalSlug;
+    setNote(
+      originalSlug
+        ? "This slug is locked to the tablet you are revising. Unlock it only to cut a new line."
+        : ""
+    );
+    if (title) {
+      voice.textContent = "This tablet is already on the clay. Revise it.";
+    }
+  }
+
+  function setNewCut(message) {
+    originalSlug = "";
+    form.slug.removeAttribute("data-original");
+    form.slug.readOnly = false;
+    if (cut) cut.textContent = "Cut into the tablet";
+    if (cutNew) cutNew.hidden = true;
+    setNote(message || "");
+  }
 
   function field(name, type, placeholder, value) {
     var input = document.createElement("input");
@@ -124,18 +158,24 @@
     (entry.claims || []).forEach(function (claim) { addClaim(claim); });
     if (!box.children.length) addClaim();
     paintMeter(entry.completeness && entry.completeness.ratio);
-    voice.textContent = "This tablet is already on the clay. Revise it.";
+    setRevising(entry.slug, entry.title);
     reason.textContent = "Loaded from the tablet. The judge still applies.";
+    if (form.title && form.title.focus) form.title.focus();
   }
 
   function loadSlug(slug, replaceUrl) {
     slug = (slug || "").trim().toLowerCase();
     if (!slug) return;
+    if (loadBtn) {
+      loadBtn.disabled = true;
+      loadBtn.textContent = "Reading…";
+    }
     fetch("/api/e/" + encodeURIComponent(slug))
       .then(function (res) {
         if (res.status === 404) {
           voice.textContent = "That slug is not on the tablet yet. Cut a new line.";
           reason.textContent = "";
+          setNewCut("That slug is not on the tablet yet. The form still holds what you typed.");
           return null;
         }
         return res.json();
@@ -147,13 +187,31 @@
       })
       .catch(function () {
         reason.textContent = "The tablet could not be read.";
+      })
+      .then(function () {
+        if (loadBtn) {
+          loadBtn.disabled = false;
+          loadBtn.textContent = "Load tablet";
+        }
       });
   }
 
   document.getElementById("add-claim").addEventListener("click", function () { addClaim(); });
-  document.getElementById("load-slug").addEventListener("click", function () {
+  loadBtn.addEventListener("click", function () {
     loadSlug(form.slug.value, true);
   });
+  form.slug.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (form.slug.readOnly) return;
+    loadSlug(form.slug.value, true);
+  });
+  if (cutNew) {
+    cutNew.addEventListener("click", function () {
+      setNewCut("Slug unlocked. Submit will cut a new tablet instead of replacing this one.");
+      form.slug.focus();
+    });
+  }
   box.addEventListener("click", function (event) {
     var button = event.target.closest(".remove-claim");
     if (!button) return;

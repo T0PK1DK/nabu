@@ -420,7 +420,8 @@ def render_propose(slug: str = "") -> bytes:
         ratio = (entry.get("completeness") or {}).get("ratio") or 0
         banner = (
             f'<p class="banner">Editing <a href="/e/{esc(entry["slug"])}">{esc(entry["title"])}</a>. '
-            "A replace writes a revision snapshot.</p>"
+            "A replace writes a revision snapshot. "
+            f'<a href="/e/{esc(entry["slug"])}">Back to this tablet</a>.</p>'
         )
         return render_template(
             "propose.html",
@@ -428,6 +429,8 @@ def render_propose(slug: str = "") -> bytes:
                 "VOICE": esc(voice),
                 "TODAY": esc(today),
                 "SLUG": esc(entry["slug"]),
+                "ORIGINAL_SLUG": esc(entry["slug"]),
+                "SLUG_ATTRS": "readonly",
                 "KIND": esc(entry["kind"]),
                 "TITLE": esc(entry["title"]),
                 "SUMMARY": esc(entry["summary"]),
@@ -437,6 +440,9 @@ def render_propose(slug: str = "") -> bytes:
                 "METER": meter(ratio),
                 "BANNER": banner,
                 "PREFILLED": "true",
+                "SUBMIT": "Replace this tablet",
+                "CUT_NEW_HIDDEN": "",
+                "SLUG_NOTE": "This slug is locked to the tablet you are revising. Unlock it only to cut a new line.",
             },
         )
     if slug:
@@ -449,6 +455,8 @@ def render_propose(slug: str = "") -> bytes:
             "VOICE": esc(voice),
             "TODAY": esc(today),
             "SLUG": esc(slug),
+            "ORIGINAL_SLUG": "",
+            "SLUG_ATTRS": "",
             "KIND": "note",
             "TITLE": "",
             "SUMMARY": "",
@@ -458,6 +466,9 @@ def render_propose(slug: str = "") -> bytes:
             "METER": meter(0),
             "BANNER": "",
             "PREFILLED": "false",
+            "SUBMIT": "Cut into the tablet",
+            "CUT_NEW_HIDDEN": "hidden",
+            "SLUG_NOTE": "",
         },
     )
 
